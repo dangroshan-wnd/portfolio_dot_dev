@@ -212,39 +212,56 @@
 
   // ================================================================== background
   const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+  // Sunny backyard pool (the game doesn't follow the site's dark theme)
   (function paint() {
     const b = bg.getContext('2d');
-    b.fillStyle = '#2c2a3d'; b.fillRect(0, 0, W, H);                         // deck
-    b.fillStyle = '#353249';
-    for (let y = 2; y < PY0 - 2; y += 6) b.fillRect(0, y, W, 1);                 // top deck planks
-    for (let y = PY1 + 4; y < H; y += 6) b.fillRect(0, y, W, 1);
-    for (let x = 3; x < PX0 - 2; x += 5) { b.fillRect(x, PY0, 1, PY1 - PY0); b.fillRect(W - x, PY0, 1, PY1 - PY0); }
-    b.fillStyle = '#8fa3b8'; b.fillRect(PX0 - 2, PY0 - 2, PX1 - PX0 + 4, PY1 - PY0 + 4);   // coping
-    b.fillStyle = '#12456b'; b.fillRect(PX0, PY0, PX1 - PX0, PY1 - PY0);                   // water
-    b.fillStyle = '#15507a';
+    const px = (x, y, c) => { b.fillStyle = c; b.fillRect(x, y, 1, 1); };
+    const disc = (cx, cy, r, colorAt) => {
+      for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r + r * .6) px(cx + x, cy + y, colorAt(x, y));
+    };
+    // deck: warm sandstone pavers
+    b.fillStyle = '#ecd9b0'; b.fillRect(0, 0, W, H);
+    b.fillStyle = '#dcc596';
+    for (let y = 0; y < H; y += 10) b.fillRect(0, y, W, 1);
+    for (let y = 0; y < H; y += 10) for (let x = (y / 10) % 2 ? 0 : 10; x < W; x += 20) b.fillRect(x, y, 1, 10);
+    b.fillStyle = '#f3e4c2'; for (let i = 0; i < 90; i++) b.fillRect((i * 37) % W, (i * 71) % H, 1, 1);   // speckle
+    // coping: white stone rim with a soft shadow line
+    b.fillStyle = '#c8b98f'; b.fillRect(PX0 - 4, PY0 - 4, PX1 - PX0 + 8, PY1 - PY0 + 8);
+    b.fillStyle = '#fbf6ea'; b.fillRect(PX0 - 3, PY0 - 3, PX1 - PX0 + 6, PY1 - PY0 + 6);
+    // water: turquoise, deeper toward the bottom, with floor tiles
+    const bands = ['#5fd0e6', '#4cc5e0', '#3dbad9', '#32aed1', '#2aa2c8'];
+    const bh = Math.ceil((PY1 - PY0) / bands.length);
+    bands.forEach((c, i) => { b.fillStyle = c; b.fillRect(PX0, PY0 + i * bh, PX1 - PX0, Math.min(bh, PY1 - PY0 - i * bh)); });
+    b.fillStyle = 'rgba(255,255,255,.14)';
     for (let x = PX0 + 9; x < PX1; x += 10) b.fillRect(x, PY0, 1, PY1 - PY0);
     for (let y = PY0 + 9; y < PY1; y += 10) b.fillRect(PX0, y, PX1 - PX0, 1);
-    // underwater lights: stepped glow
-    for (const [cx, cy] of [[PX0 + 1, 130], [PX1 - 1, 220], [90, PY1 - 1]]) {
-      for (const [r, c] of [[30, '#175a85'], [20, '#1d6a96'], [11, '#2785b5'], [4, '#9fd8f2']]) {
-        b.fillStyle = c;
-        for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
-          if (x < PX0 || x >= PX1 || y < PY0 || y >= PY1) continue;
-          const d = (x - cx) ** 2 + (y - cy) ** 2;
-          if (d <= r * r && (r > 12 ? (x + y) % 2 === 0 || d < (r - 4) ** 2 : true)) b.fillRect(x, y, 1, 1);
-        }
-      }
-    }
+    b.fillStyle = '#1f86b0'; b.fillRect(88, 190, 4, 100); b.fillRect(80, 286, 20, 4);   // lane marking on the pool floor
+    b.fillStyle = '#7fdcee'; b.fillRect(PX0, PY0, PX1 - PX0, 2);                          // sunlit top edge
+    // pool ladder (top right)
+    b.fillStyle = '#9aa7b4'; b.fillRect(146, 38, 2, 16); b.fillRect(156, 38, 2, 16);
+    b.fillStyle = '#dfe6ec'; b.fillRect(146, 44, 12, 1); b.fillRect(146, 50, 12, 1); b.fillRect(147, 38, 1, 16); b.fillRect(157, 38, 1, 16);
     // diving board
-    b.fillStyle = '#6b6478'; b.fillRect(86, 10, 10, 6);
-    b.fillStyle = '#d9d4c7'; b.fillRect(87, 14, 8, 38); b.fillStyle = '#b8b2a4'; b.fillRect(87, 14, 1, 38);
-    // grill
-    b.fillStyle = '#15171c'; b.fillRect(150, 18, 12, 12); b.fillRect(149, 19, 14, 10);
-    b.fillStyle = '#3a3f4a'; for (let x = 151; x < 162; x += 3) b.fillRect(x, 19, 1, 10);
+    b.fillStyle = '#1f86b0'; b.fillRect(85, 8, 12, 7);
+    b.fillStyle = '#ffffff'; b.fillRect(87, 13, 8, 39); b.fillStyle = '#cfd8e0'; b.fillRect(87, 13, 1, 39); b.fillRect(87, 51, 8, 1);
+    // beach umbrella (top left), seen from above: red/white wedges
+    b.fillStyle = 'rgba(120,90,40,.25)'; disc(40, 29, 12, () => 'rgba(120,90,40,.22)');
+    disc(37, 25, 12, (x, y) => (Math.floor((Math.atan2(y, x) + Math.PI) / (Math.PI / 4)) % 2 ? '#e85d4a' : '#fdf6ea'));
+    disc(37, 25, 1, () => '#7a5a3a');
+    // grill + Dan
+    b.fillStyle = '#2b2b30'; b.fillRect(150, 18, 12, 12); b.fillRect(149, 19, 14, 10);
+    b.fillStyle = '#55555e'; for (let x = 151; x < 162; x += 3) b.fillRect(x, 19, 1, 10);
+    b.drawImage(dan, 140, 12);
+    // towels + flip-flops along the sides, potted plants on the bottom deck
+    b.fillStyle = '#5fc9ff'; b.fillRect(1, 150, 11, 18); b.fillStyle = '#ffffff'; for (let y = 152; y < 168; y += 4) b.fillRect(1, y, 11, 1);
+    b.fillStyle = '#ffd93d'; b.fillRect(W - 12, 60, 11, 18); b.fillStyle = '#ff7eb6'; for (let y = 62; y < 78; y += 4) b.fillRect(W - 12, y, 11, 1);
+    b.fillStyle = '#e85d4a'; b.fillRect(3, 280, 3, 6); b.fillRect(7, 282, 3, 6);
+    for (const x of [24, 150]) {
+      b.fillStyle = '#b8643a'; b.fillRect(x, H - 9, 8, 7);
+      b.fillStyle = '#4f9a4a'; disc(x + 4, H - 11, 4, (x2, y2) => ((x2 + y2) % 3 ? '#4f9a4a' : '#6fbf5f'));
+    }
     // deck guests
     b.drawImage(guests[0], 2, 96); b.drawImage(guests[1], 2, 200);
     b.drawImage(flipX(guests[2]), W - 12, 148); b.drawImage(flipX(guests[3]), W - 12, 252);
-    b.drawImage(dan, 140, 12);
   })();
   const GUEST_SPOTS = [{ x: 8, y: 100, a: 0 }, { x: 8, y: 204, a: 0 }, { x: W - 8, y: 152, a: Math.PI }, { x: W - 8, y: 256, a: Math.PI }];
 
@@ -561,7 +578,7 @@
 
     // water shimmer
     if (!reduceMotion) {
-      ctx.fillStyle = '#2d8fc4';
+      ctx.fillStyle = '#b8f0fa';
       for (let i = 0; i < 14; i++) {
         const x = PX0 + ((i * 53 + clock * (6 + i % 3 * 3)) % (PX1 - PX0 - 4)), y = PY0 + ((i * 97) % (PY1 - PY0 - 4));
         ctx.fillRect(Math.round(x), y, 3, 1);
@@ -583,20 +600,20 @@
       if (shady.phase === 'swim') {   // just her head above water, paddling back to the deck
         const k = shady.t / 2.4, sx = Math.round(shady.x - 8 + (66 - shady.x) * k), sy = Math.round(shady.y - 5 + (PY0 + 2 - shady.y) * k);
         ctx.drawImage(shadyDeck, 0, 0, 16, SHADY_HEAD_ROWS, sx, sy, 16, SHADY_HEAD_ROWS);
-        ctx.fillStyle = '#2d8fc4'; ctx.fillRect(sx + 1, sy + SHADY_HEAD_ROWS, 14, 1); ctx.fillRect(sx + 3, sy + SHADY_HEAD_ROWS + 2, 10, 1);
+        ctx.fillStyle = '#e6fbff'; ctx.fillRect(sx + 1, sy + SHADY_HEAD_ROWS, 14, 1); ctx.fillRect(sx + 3, sy + SHADY_HEAD_ROWS + 2, 10, 1);
       }
     }
 
     // Noodles (paddle animation)
     const frame = Math.floor(pup.swimT * 8) % 2 ? noodlesA : noodlesB;
-    ctx.fillStyle = '#2d8fc4'; ctx.fillRect(Math.round(pup.x) + 2, Math.round(pup.y) + NO_H, 9, 1);   // wake
+    ctx.fillStyle = '#e6fbff'; ctx.fillRect(Math.round(pup.x) + 2, Math.round(pup.y) + NO_H, 9, 1);   // wake
     ctx.drawImage(frame, Math.round(pup.x), Math.round(pup.y));
 
     // swan boss
     if (swan) ctx.drawImage(swan.dir > 0 ? SWAN_R : SWAN_L, Math.round(swan.x), Math.round(swan.y));
 
     // rings (cannonball waves) with their escape gap
-    for (const r of rings) { ringPixels(r.x, r.y, r.r, '#bfeaff', r.gap, r.gapHalf); ringPixels(r.x, r.y, r.r - 3, '#5fc9ff', r.gap, r.gapHalf); }
+    for (const r of rings) { ringPixels(r.x, r.y, r.r, '#ffffff', r.gap, r.gapHalf); ringPixels(r.x, r.y, r.r - 3, '#1f6f9a', r.gap, r.gapHalf); }
 
     // bullets
     for (const b of bullets) {
@@ -608,12 +625,12 @@
       else if (b.kind === 'flamingo') ctx.drawImage(FLAMINGO, Math.round(b.x - 6), Math.round(b.y - 6));
       else if (b.kind === 'duck') ctx.drawImage(DUCK, Math.round(b.x - 3), Math.round(b.y - 2));
       else if (b.kind === 'squirter' && b.warn > 0) {
-        if (Math.floor(b.warn * 10) % 2 === 0) { ctx.fillStyle = '#d6f3ff'; for (let d = 8; d < 70; d += 6) ctx.fillRect(Math.round(b.x + Math.cos(b.a) * d), Math.round(b.y + Math.sin(b.a) * d), 1, 1); }
+        if (Math.floor(b.warn * 10) % 2 === 0) { ctx.fillStyle = '#0b4f73'; for (let d = 8; d < 70; d += 6) ctx.fillRect(Math.round(b.x + Math.cos(b.a) * d), Math.round(b.y + Math.sin(b.a) * d), 1, 1); }
       }
-      else if (b.kind === 'drop') { ctx.fillStyle = '#d6f3ff'; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 2, 2); }
+      else if (b.kind === 'drop') { ctx.fillStyle = '#0b4f73'; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 3, 3); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 2, 2); }
       else if (b.kind === 'confetti') { ctx.fillStyle = b.color; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 2, 2); }
     }
-    ctx.fillStyle = '#d6f3ff';
+    ctx.fillStyle = '#ffffff';
     for (const s of splashes) ctx.fillRect(Math.round(s.x), Math.round(s.y), 2, 2);
 
     // incoming-noodle warnings
@@ -696,6 +713,7 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && state === 'play') { paused = true; keys.clear(); drag = null; musicStop(); }
   });
+
 
 
 
