@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Shady's Snack Attack · Dan Groshan</title>
+  <meta name="description" content="Shady's Snack Attack: a tiny pixel game.">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <style>
+    body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+    .bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+      font: 600 .95rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .bar a { color: var(--muted); text-decoration: none; }
+    .bar a:hover, .bar a:focus-visible { color: var(--text); }
+    .bar h1 { margin: 0; font: 10px/1.4 "Press Start 2P", monospace; color: var(--games); text-align: center; }
+    .bar button {
+      font: inherit; color: var(--muted); background: var(--raised); border: 1px solid var(--line);
+      border-radius: 10px; padding: 6px 10px; cursor: pointer; min-width: 44px; min-height: 36px;
+    }
+    .bar button:focus-visible { outline: 2px solid var(--games); outline-offset: 2px; }
+
+    .game { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    canvas {
+      display: block; image-rendering: pixelated; image-rendering: crisp-edges;
+      touch-action: none; border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.45);
+    }
+
+    .pad { display: none; width: 100%; max-width: 520px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); justify-content: space-between; gap: 12px; }
+    .touch .pad { display: flex; }
+    .pad .grp { display: flex; gap: 10px; }
+    .pad button {
+      width: 68px; height: 68px; border-radius: 16px; border: 2px solid var(--line);
+      background: rgba(23,36,63,.85); color: var(--text);
+      font: 10px/1 "Press Start 2P", monospace; touch-action: none; user-select: none; -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    .pad button.on { background: var(--games); color: #0d1526; border-color: var(--games); }
+    .pad .arrow { font-size: 18px; }
+
+    /* landscape phones: controls float over the bottom corners of the game */
+    @media (orientation: landscape) {
+      .touch .pad { position: absolute; left: 0; right: 0; bottom: 0; max-width: none; pointer-events: none; }
+      .touch .pad button { pointer-events: auto; opacity: .85; }
+    }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <a href="../">← Games</a>
+    <h1>Shady's Snack Attack</h1>
+    <button id="mute" type="button" aria-pressed="false">Sound off</button>
+  </header>
+
+  <div class="game" id="game">
+    <canvas id="screen" width="320" height="180" aria-label="Shady's Snack Attack game screen"></canvas>
+    <div class="pad" aria-label="Touch controls">
+      <div class="grp">
+        <button class="arrow" data-act="left" aria-label="Move left">◀</button>
+        <button class="arrow" data-act="right" aria-label="Move right">▶</button>
+      </div>
+      <div class="grp">
+        <button data-act="jump" aria-label="Jump">JUMP</button>
+        <button data-act="chomp" aria-label="Chomp">CHOMP</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ------------------------------------------------------------------ setup
+  const W = 320, H = 180, FLOOR = 152;
+  const ROUND = 30;                       // seconds
+  const GRAV_TREAT = 260, GRAV_DOG = 520;
+  const RUN = 100, JUMP_V = -178;
+  const CHOMP_SNAP = 0.15, CHOMP_COOLDOWN = 0.30;
+  const FONT = '"Press Start 2P", monospace';
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  if (isTouch) document.body.classList.add('touch');
+
+  const cv = document.getElementById('screen');
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+
+  // ------------------------------------------------------------------ sprites
+  function sprite(rows, pal) {
+    const h = rows.length, w = Math.max(...rows.map(r => r.length));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const ch = r[i]; if (ch !== '.') { x.fillStyle = pal[ch]; x.fillRect(i, j, 1, 1); } } });
+    return c;
+  }
+  function flip(c) {
+    const f = document.createElement('canvas'); f.width = c.width; f.height = c.height;
+    const x = f.getContext('2d'); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0); return f;
+  }
+
+  // Shady — Mini Aussiedoodle: merle coat, white blaze/bib/socks, tongue out (see docs/characters.md)
+  const SH = { k: '#3a3f4a', d: '#2a2e37', g: '#8d96a8', w: '#e8e6e1', n: '#15171c', p: '#f27d9c', m: '#5a2232', e: '#0b0c10' };
+  const SH_TOP = [
+    '......................kk......',
+    '.....................kkkk.....',
+    '....................kkkkkk....',
+    '...................dkkwkkkk...',
+    '..kk...............dkkwkekkk..',
+    '...kk..............ddkwkkgggn.',
+    '....kk.............ddkkkgggggn',
+    '.....kkkkkkkkkkkkkkddkkkmmmmm.',
+    '....kkkgkkkkwkkkkkkkdkkkkmpp..',
+    '...kkggkkkkkkkkgkkkkkwkk..pp..',
+    '...kkkkkkwkkkgggkkkkwwww..p...',
+    '...kkkkkkkkkkkkkkkkwwwww......',
+    '...kkkkkkkkkkkkkkkkkwwww......',
+    '....kkkkkkkkkkkkkkkkkww.......',
+  ];
+  const SH_TOP_CHOMP = SH_TOP.slice();
+  SH_TOP_CHOMP[7]  = '.....kkkkkkkkkkkkkkddkkkggggg.';
+  SH_TOP_CHOMP[8]  = '....kkkgkkkkwkkkkkkkdkkkkgg...';
+  SH_TOP_CHOMP[9]  = '...kkggkkkkkkkkgkkkkkwkk......';
+  SH_TOP_CHOMP[10] = '...kkkkkkwkkkgggkkkkwwww......';
+  const LEGS = {
+    stand: ['....dkk.dkk.......kkd.kkd.....', '....dkk.dkk.......kkd.kkd.....', '....dkk.dkk.......kkd.kkd.....', '....dkk.dkk.......kkd.kkd.....', '....www.www.......www.www.....'],
+    runA:  ['...dkk...dkk.....kkd...kkd....', '..dkk.....dkk...kkd.....kkd...', '..dkk.....dkk...kkd.....kkd...', '.dkk.......dkk.kkd.......kkd..', '.www.......www.www.......www..'],
+    runB:  ['....dkkdkk........kkdkkd......', '....dkkdkk........kkdkkd......', '....dkkdkk........kkdkkd......', '....dkkdkk........kkdkkd......', '....wwwwww........wwwwww......'],
+    jump:  ['...dkkk.dkkk.....kkkd.kkkd....', '..dkkk...dkkk...kkkd...kkkd...', '..www.....www...www.....www...', '..............................', '..............................'],
+  };
+  const shady = {};
+  for (const [name, legs] of Object.entries(LEGS)) {
+    for (const [mouth, top] of [['open', SH_TOP], ['chomp', SH_TOP_CHOMP]]) {
+      const r = sprite(top.concat(legs), SH);
+      shady[`${name}-${mouth}-R`] = r; shady[`${name}-${mouth}-L`] = flip(r);
+    }
+  }
+  const SH_W = 30, SH_H = 19;
+
+  // Noodles — Mini Goldendoodle, sitting on the sidelines (cosmetic)
+  const NO = { o: '#e3a868', D: '#c98a4c', L: '#f0c48e', n: '#2e2420', e: '#1d1512' };
+  const NO_BODY = [
+    '..........ooo.......',
+    '.........ooooo......',
+    '........ooooooo.....',
+    '.......DooooeoLL....',
+    '.......DDoooooLLLn..',
+    '.......DDooooLLLL...',
+    '........Doooooo.....',
+    '........oooooo......',
+    '.....ooooooooo......',
+    '....oooooooooo......',
+    '....oooooooooo......',
+    '....oooooooooo......',
+    '....ooooooooooo.....',
+    '....oooooo.oooo.....',
+    '....oooooo.oo.oo....',
+    '....DDoooo.oo.oo....',
+    '....LLLLL..LL.LL....',
+  ];
+  const tailA = NO_BODY.slice(), tailB = NO_BODY.slice();
+  tailA[10] = '..D.oooooooooo......'; tailA[11] = '.DD.oooooooooo......'; tailA[12] = 'DD..ooooooooooo.....';
+  tailB[12] = '....ooooooooooo.....'; tailB[13] = 'DDDDoooooo.oooo.....'; tailB[14] = '.DD.oooooo.oo.oo....';
+  const noodles = [flip(sprite(tailA, NO)), flip(sprite(tailB, NO))];
+
+  // Dan — plain pixel guy: grey sweatsuit + navy beanie, seated (drawn at 2x)
+  const DA = { n: '#2b3a67', c: '#3d5090', s: '#d9a982', h: '#5a4030', e: '#1b1b22', g: '#8a8f99', G: '#6d717a' };
+  const dan = sprite([
+    '......nnnnn.......',
+    '.....nnnnnnn......',
+    '....nnnnnnnnn.....',
+    '....ccccccccc.....',
+    '....hssssssss.....',
+    '....hsssssess.....',
+    '....hssssssss.....',
+    '.....sssssss......',
+    '.......ss.........',
+    '....GGGGgGGGG.....',
+    '...ggggggggggg....',
+    '...ggggggggggg....',
+    '...ggggggggggg....',
+    '...ggggggggggg....',
+    '...ggggggggggg....',
+    '...ggggggggggg....',
+  ], DA);
+  const DAN_X = 16, DAN_Y = 88, HAND_REST = [50, 115], HAND_THROW = [58, 90];
+
+  // Treats — bone biscuits, two spin frames
+  const TR = { b: '#a8723f', B: '#e8b877' };
+  const treatH = sprite(['.b...b.', 'bBBBBBb', 'bBBBBBb', '.b...b.'], TR);
+  const treatV = sprite(['.bb.', 'bBBb', '.BB.', '.BB.', '.BB.', 'bBBb', '.bb.'], TR);
+
+  // ------------------------------------------------------------------ static background
+  const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+  (function paintBackground() {
+    const b = bg.getContext('2d');
+    b.fillStyle = '#141a30'; b.fillRect(0, 0, W, H);   // must be fully opaque: the game never clears the canvas
+    const bands = ['#0a0f20', '#0d1428', '#101931', '#131e3a', '#162343', '#19284c'];
+    bands.forEach((c, i) => { b.fillStyle = c; b.fillRect(0, i * 14, W, 14); });
+    b.fillStyle = '#19284c'; b.fillRect(0, 84, W, 20);
+    // moon (crescent)
+    b.fillStyle = '#f3ead8'; b.fillRect(262, 14, 8, 12); b.fillRect(260, 16, 2, 8); b.fillRect(270, 15, 2, 2); b.fillRect(270, 23, 2, 2);
+    // stars
+    b.fillStyle = '#c9d3ea';
+    [[20, 40], [48, 18], [96, 44], [130, 12], [170, 50], [204, 26], [232, 56], [296, 40], [306, 10], [150, 34], [80, 60]].forEach(([x, y]) => b.fillRect(x, y, 1, 1));
+    // fence
+    for (let x = 0; x < W; x += 10) {
+      b.fillStyle = '#232a45'; b.fillRect(x, 82, 9, 70);
+      b.fillStyle = '#2b3354'; b.fillRect(x, 82, 2, 70);
+      b.fillStyle = '#232a45'; b.fillRect(x + 2, 80, 5, 2); b.fillRect(x + 3, 78, 3, 2);
+    }
+    b.fillStyle = '#1b2139'; b.fillRect(0, 96, W, 3); b.fillRect(0, 132, W, 3);
+    // patio floor
+    for (let y = FLOOR; y < H; y += 8) {
+      for (let x = (y / 8) % 2 ? -8 : 0; x < W; x += 16) {
+        b.fillStyle = ((x + y) / 8) % 2 ? '#26304f' : '#2c375a'; b.fillRect(x, y, 16, 8);
+      }
+    }
+    b.fillStyle = '#3a4670'; b.fillRect(0, FLOOR, W, 1);
+    // chair back
+    b.fillStyle = '#4a3524'; b.fillRect(10, 92, 4, 60); b.fillRect(10, 92, 10, 3);
+    // table
+    b.fillStyle = '#5a4028'; b.fillRect(8, 122, 4, 30); b.fillRect(54, 122, 4, 30);
+    // treat jar
+    b.fillStyle = '#8fb3c9'; b.fillRect(14, 106, 10, 12); b.fillStyle = '#b9d4e3'; b.fillRect(15, 107, 2, 9);
+    b.fillStyle = '#e8b877'; b.fillRect(17, 112, 5, 2); b.fillRect(16, 115, 6, 2);
+    b.fillStyle = '#c94a3a'; b.fillRect(13, 104, 12, 3);
+  })();
+  function drawTableTop() {
+    ctx.fillStyle = '#7a5a3a'; ctx.fillRect(4, 118, 60, 5);
+    ctx.fillStyle = '#5a4028'; ctx.fillRect(4, 122, 60, 1);
+    ctx.drawImage(bg, 13, 104, 12, 14, 13, 104, 12, 14); // jar sits on the table
+  }
+
+  const BULB_COLORS = ['#ffd36b', '#ff9f68', '#fff1b8', '#ff7b8a'];
+  function drawLights(t) {
+    for (let x = 0; x <= W; x += 2) {
+      const u = (x % 160) / 160, y = 20 + Math.round(16 * u * (1 - u) * 4 * .5);
+      ctx.fillStyle = '#0b0f1c'; ctx.fillRect(x, y, 2, 1);
+    }
+    for (let i = 0, x = 8; x < W; x += 16, i++) {
+      const u = (x % 160) / 160, y = 22 + Math.round(16 * u * (1 - u) * 4 * .5);
+      const on = reduceMotion || ((Math.floor(t * 2) + i) % 5 !== 0);
+      ctx.fillStyle = on ? BULB_COLORS[i % 4] : '#4a4a5a'; ctx.fillRect(x, y, 2, 3);
+    }
+  }
+
+  function drawArm(hand) {
+    // 2x-pixel arm from Dan's shoulder to his hand
+    const [sx, sy] = [DAN_X + 22, DAN_Y + 22], [hx, hy] = hand;
+    const steps = Math.max(Math.abs(hx - sx), Math.abs(hy - sy)) / 2;
+    ctx.fillStyle = '#8a8f99';
+    for (let i = 0; i <= steps; i++) {
+      const x = Math.round((sx + (hx - sx) * i / steps) / 2) * 2, y = Math.round((sy + (hy - sy) * i / steps) / 2) * 2;
+      ctx.fillRect(x - 2, y - 2, 4, 4);
+    }
+    ctx.fillStyle = '#d9a982'; ctx.fillRect(hx - 2, hy - 2, 4, 4);
+  }
+
+  // ------------------------------------------------------------------ text
+  function text(str, x, y, { size = 8, color = '#e8edf7', align = 'left', shadow = '#0b0f1c' } = {}) {
+    ctx.font = `${size}px ${FONT}`; ctx.textAlign = align; ctx.textBaseline = 'top';
+    ctx.fillStyle = shadow; ctx.fillText(str, x + 1, y + 1);
+    ctx.fillStyle = color; ctx.fillText(str, x, y);
+  }
+
+  // ------------------------------------------------------------------ sound (chiptune blips)
+  let audio = null, muted = store.get('ssa-muted', '0') === '1';
+  const muteBtn = document.getElementById('mute');
+  function syncMute() { muteBtn.textContent = muted ? 'Sound off' : 'Sound on'; muteBtn.setAttribute('aria-pressed', String(!muted)); }
+  function unlockAudio() {
+    if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch { audio = null; } }
+    if (audio && audio.state === 'suspended') audio.resume();
+  }
+  function blip(freq, dur, { type = 'square', to = null, vol = .06, delay = 0 } = {}) {
+    if (muted || !audio) return;
+    const t0 = audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+    o.connect(g).connect(audio.destination); o.start(t0); o.stop(t0 + dur + .02);
+  }
+  const sfx = {
+    start: () => { blip(440, .08); blip(660, .08, { delay: .09 }); blip(880, .12, { delay: .18 }); },
+    jump:  () => blip(280, .12, { to: 620 }),
+    chomp: () => blip(140, .06, { type: 'triangle', vol: .12 }),
+    catch: () => { blip(660, .06); blip(990, .1, { delay: .06 }); },
+    bonk:  () => blip(180, .07, { type: 'triangle', to: 120, vol: .08 }),
+    end:   () => { blip(660, .12); blip(520, .12, { delay: .13 }); blip(330, .25, { delay: .26 }); },
+  };
+  muteBtn.addEventListener('click', () => { muted = !muted; store.set('ssa-muted', muted ? '1' : '0'); unlockAudio(); syncMute(); });
+  // No sound can play until the first key/tap (browsers require a gesture); the button mutes it.
+  syncMute();
+
+  // ------------------------------------------------------------------ game state
+  let state = 'title', paused = false, overAt = 0, clock = 0;
+  let score = 0, best = Number(store.get('ssa-best', '0')) || 0, newBest = false;
+  let timeLeft = ROUND, nextThrow = 1, throwAnim = 0, thrownThisAnim = false;
+  const dog = { x: 150, y: FLOOR - SH_H, vy: 0, face: 1, ground: true, chomp: 0, cooldown: 0, runT: 0 };
+  let treats = [], pops = [], crumbs = [];
+  const input = { left: false, right: false };
+
+  function reset() {
+    score = 0; newBest = false; timeLeft = ROUND; nextThrow = .8; throwAnim = 0;
+    treats = []; pops = []; crumbs = [];
+    Object.assign(dog, { x: 150, y: FLOOR - SH_H, vy: 0, face: -1, ground: true, chomp: 0, cooldown: 0, runT: 0 });
+  }
+  function start() { reset(); state = 'play'; paused = false; sfx.start(); }
+
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function launch() {
+    const [x0, y0] = HAND_THROW;
+    const vy = rnd(-215, -115), tx = rnd(76, 304);
+    const t = (-vy + Math.sqrt(vy * vy + 2 * GRAV_TREAT * (FLOOR - 3 - y0))) / GRAV_TREAT;
+    treats.push({ x: x0, y: y0, vx: (tx - x0) / t, vy, spin: 0, bounced: false });
+  }
+
+  function mouthBox() {
+    const mx = dog.face > 0 ? dog.x + 23 : dog.x;
+    return { x: mx - 2, y: dog.y + 4, w: 9, h: 9 };
+  }
+  function bodyBox() { return { x: dog.x + 3, y: dog.y + 1, w: SH_W - 6, h: SH_H - 1 }; }
+  const inBox = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
+
+  function update(dt) {
+    clock += dt;
+    if (state !== 'play' || paused) return;
+
+    timeLeft -= dt;
+    if (timeLeft <= 0) {
+      timeLeft = 0; state = 'over'; overAt = clock;
+      if (score > best) { best = score; newBest = true; store.set('ssa-best', String(best)); }
+      sfx.end(); return;
+    }
+
+    // Dan's throwing rhythm: steady, random, one treat every ~1-1.5s
+    nextThrow -= dt;
+    if (nextThrow <= 0) { throwAnim = .3; thrownThisAnim = false; nextThrow = rnd(.95, 1.5); }
+    if (throwAnim > 0) {
+      throwAnim -= dt;
+      if (!thrownThisAnim && throwAnim < .15) { launch(); thrownThisAnim = true; }
+    }
+
+    // Shady
+    const dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+    if (dir) { dog.face = dir; dog.runT += dt; }
+    dog.x = Math.max(64, Math.min(W - SH_W - 2, dog.x + dir * RUN * dt));
+    dog.vy += GRAV_DOG * dt; dog.y += dog.vy * dt;
+    if (dog.y >= FLOOR - SH_H) { dog.y = FLOOR - SH_H; dog.vy = 0; dog.ground = true; }
+    dog.chomp = Math.max(0, dog.chomp - dt); dog.cooldown = Math.max(0, dog.cooldown - dt);
+
+    // treats
+    const mouth = mouthBox(), body = bodyBox();
+    for (const t of treats) {
+      t.vy += GRAV_TREAT * dt; t.x += t.vx * dt; t.y += t.vy * dt; t.spin += dt;
+      if (dog.chomp > 0 && inBox(t, mouth)) {
+        t.dead = true; score++; sfx.catch();
+        pops.push({ x: t.x, y: t.y - 6, life: .7 });
+        continue;
+      }
+      if (!t.bounced && t.vy > 0 && inBox(t, body) && !inBox(t, mouth)) {
+        t.bounced = true; t.vy = -Math.abs(t.vy) * .45; t.vx = (t.x < dog.x + SH_W / 2 ? -1 : 1) * rnd(30, 60); sfx.bonk();
+      }
+      if (t.y >= FLOOR - 2) {
+        t.dead = true;
+        for (let i = 0; i < 4; i++) crumbs.push({ x: t.x, y: FLOOR - 1, vx: rnd(-30, 30), vy: rnd(-60, -20), life: .4 });
+      }
+      if (t.x < -10 || t.x > W + 10) t.dead = true;
+    }
+    treats = treats.filter(t => !t.dead);
+    for (const p of pops) { p.life -= dt; p.y -= 14 * dt; }
+    pops = pops.filter(p => p.life > 0);
+    for (const c of crumbs) { c.life -= dt; c.vy += 300 * dt; c.x += c.vx * dt; c.y = Math.min(FLOOR - 1, c.y + c.vy * dt); }
+    crumbs = crumbs.filter(c => c.life > 0);
+  }
+
+  function draw() {
+    ctx.drawImage(bg, 0, 0);
+    drawLights(clock);
+
+    // Dan + arm
+    ctx.drawImage(dan, DAN_X, DAN_Y, dan.width * 2, dan.height * 2);
+    drawArm(throwAnim > 0 ? HAND_THROW : HAND_REST);
+    drawTableTop();
+
+    // Noodles on the sidelines, wagging
+    const wag = reduceMotion ? 0 : Math.floor(clock * 4) % 2;
+    ctx.drawImage(noodles[wag], 298, FLOOR - noodles[0].height);
+
+    // Shady
+    let legs = 'stand';
+    if (!dog.ground) legs = 'jump';
+    else if ((input.left || input.right) && state === 'play') legs = Math.floor(dog.runT * 10) % 2 ? 'runA' : 'runB';
+    const mouthState = dog.chomp > 0 ? 'chomp' : 'open';
+    ctx.drawImage(shady[`${legs}-${mouthState}-${dog.face > 0 ? 'R' : 'L'}`], Math.round(dog.x), Math.round(dog.y));
+
+    // treats, crumbs, +1s
+    for (const t of treats) {
+      const s = Math.floor(t.spin * 10) % 2 ? treatV : treatH;
+      ctx.drawImage(s, Math.round(t.x - s.width / 2), Math.round(t.y - s.height / 2));
+    }
+    ctx.fillStyle = '#e8b877';
+    for (const c of crumbs) ctx.fillRect(Math.round(c.x), Math.round(c.y), 1, 1);
+    for (const p of pops) text('+1', Math.round(p.x), Math.round(p.y), { color: '#ffd36b' });
+
+    // HUD
+    if (state !== 'title') {
+      text(`TREATS ${score}`, 6, 6);
+      text(`0:${String(Math.ceil(timeLeft)).padStart(2, '0')}`, W - 6, 6, { align: 'right', color: timeLeft <= 5 ? '#f2789c' : '#e8edf7' });
+    }
+
+    if (state === 'title') {
+      panel();
+      text("SHADY'S", W / 2, 44, { size: 16, align: 'center', color: '#f2789c' });
+      text('SNACK ATTACK', W / 2, 64, { size: 16, align: 'center', color: '#f2789c' });
+      if (isTouch) {
+        text('◀ ▶ MOVE  JUMP  CHOMP', W / 2, 94, { align: 'center', color: '#97a6c4' });
+      } else {
+        text('A/D MOVE  W JUMP', W / 2, 90, { align: 'center', color: '#97a6c4' });
+        text('SPACE CHOMP', W / 2, 102, { align: 'center', color: '#97a6c4' });
+      }
+      blinkText(isTouch ? 'TAP TO START' : 'PRESS ANY KEY', 120);
+    } else if (state === 'over') {
+      panel();
+      text("TIME'S UP!", W / 2, 48, { size: 16, align: 'center', color: '#f2789c' });
+      text(`TREATS  ${score}`, W / 2, 76, { align: 'center' });
+      text(newBest ? `NEW BEST!  ${best}` : `BEST  ${best}`, W / 2, 90, { align: 'center', color: newBest ? '#ffd36b' : '#97a6c4' });
+      if (clock - overAt > .8) blinkText(isTouch ? 'TAP TO PLAY AGAIN' : 'ENTER TO PLAY AGAIN', 116);
+    } else if (paused) {
+      panel();
+      text('PAUSED', W / 2, 70, { size: 16, align: 'center' });
+      blinkText(isTouch ? 'TAP TO RESUME' : 'PRESS ANY KEY', 100);
+    }
+  }
+  function panel() { ctx.fillStyle = 'rgba(10,15,32,.72)'; ctx.fillRect(24, 30, W - 48, 112); }
+  function blinkText(str, y) { if (reduceMotion || Math.floor(clock * 2) % 2 === 0) text(str, W / 2, y, { align: 'center', color: '#e8edf7' }); }
+
+  // ------------------------------------------------------------------ actions
+  function jump() { if (state === 'play' && !paused && dog.ground) { dog.vy = JUMP_V; dog.ground = false; sfx.jump(); } }
+  function chomp() {
+    if (state !== 'play' || paused || dog.cooldown > 0) return;
+    dog.chomp = CHOMP_SNAP; dog.cooldown = CHOMP_SNAP + CHOMP_COOLDOWN; sfx.chomp();
+  }
+  // returns true when the press was used to start/restart/resume
+  function primary() {
+    unlockAudio();
+    if (state === 'title') { start(); return true; }
+    if (state === 'over') { if (clock - overAt > .8) start(); return true; }
+    if (paused) { paused = false; return true; }
+    return false;
+  }
+
+  // keyboard
+  const KEYS = { KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', KeyW: 'jump', ArrowUp: 'jump', Space: 'chomp', Enter: 'chomp' };
+  addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('a, button') && (e.code === 'Enter' || e.code === 'Space')) return;
+    const act = KEYS[e.code];
+    if (act || e.code === 'KeyM') e.preventDefault();
+    if (e.code === 'KeyM') { muteBtn.click(); return; }
+    if (e.repeat && act !== 'left' && act !== 'right') return;
+    if (primary()) return;
+    if (act === 'left' || act === 'right') input[act] = true;
+    else if (act === 'jump') jump();
+    else if (act === 'chomp') chomp();
+  });
+  addEventListener('keyup', e => { const act = KEYS[e.code]; if (act === 'left' || act === 'right') input[act] = false; });
+  addEventListener('blur', () => { input.left = input.right = false; });
+
+  // touch buttons
+  document.querySelectorAll('.pad button').forEach(btn => {
+    const act = btn.dataset.act;
+    const down = e => {
+      e.preventDefault(); btn.setPointerCapture?.(e.pointerId); btn.classList.add('on');
+      if (primary()) return;
+      if (act === 'left' || act === 'right') input[act] = true;
+      else if (act === 'jump') jump();
+      else chomp();
+    };
+    const up = e => { btn.classList.remove('on'); if (act === 'left' || act === 'right') input[act] = false; };
+    btn.addEventListener('pointerdown', down);
+    btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up); btn.addEventListener('lostpointercapture', up);
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  });
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); primary(); });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state === 'play') { paused = true; input.left = input.right = false; }
+  });
+
+
+  // ------------------------------------------------------------------ sizing
+  const game = document.getElementById('game'), pad = document.querySelector('.pad');
+  function fit() {
+    const portraitTouch = isTouch && innerHeight > innerWidth;
+    const availW = game.clientWidth - 16;
+    const availH = game.clientHeight - 16 - (portraitTouch ? pad.offsetHeight : 0);
+    let s = Math.min(availW / W, availH / H);
+    if (s >= 2) s = Math.floor(s);
+    s = Math.max(s, .5);
+    cv.style.width = `${Math.floor(W * s)}px`; cv.style.height = `${Math.floor(H * s)}px`;
+  }
+  addEventListener('resize', fit);
+  addEventListener('orientationchange', fit);
+
+  // ------------------------------------------------------------------ loop
+  let last = performance.now();
+  function frame(now) {
+    // rAF's timestamp can precede the performance.now() taken at startup, so clamp at 0
+    const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;
+    update(dt); draw();
+    requestAnimationFrame(frame);
+  }
+  const ready = document.fonts && document.fonts.load ? document.fonts.load(`8px ${FONT}`).catch(() => {}) : Promise.resolve();
+  Promise.race([ready, new Promise(r => setTimeout(r, 1500))]).then(() => { fit(); requestAnimationFrame(frame); });
+  fit();
+})();
+</script>
+</body>
+</html>

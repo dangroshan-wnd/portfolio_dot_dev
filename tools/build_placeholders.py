@@ -29,7 +29,7 @@ S = dict(coat="#3a3f4a", dark="#2a2e37", merle="#8d96a8", white="#e8e6e1", nose=
          tongue="#f27d9c", mouth="#5a2232")
 
 
-def page(slug, title, label, scene):
+def page(slug, title, label, scene, extra=""):
     up = "../" if slug else ""
     links = []
     for s, name, var in PAGES:
@@ -63,7 +63,7 @@ def page(slug, title, label, scene):
 
   <main>
     <div class="headline">
-      <h1>See you soon...</h1>
+      <h1>See you soon...</h1>{extra}
     </div>
     <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice" role="img" aria-label="{label}">
 {PAPER_DEFS}
@@ -281,6 +281,11 @@ GAMES = f"""
       {cut(f'<g transform="translate(520 630) scale(1.2)">{shady()}</g>')}
       <g class="bounce">{cut(f'<g transform="translate(720 688)"><g class="spin" style="animation-duration:1.4s">{soccer_ball()}</g></g>')}</g>"""
 
+# Extra headline content per placeholder (links to things that already exist).
+EXTRA = {
+    "games": '\n      <a class="play-link" href="shadys-snack-attack/">Play Shady\'s Snack Attack →</a>',
+}
+
 SPECS = [
     ("", "Home", "Paper cutout of Noodles and Shady face to face under the moon", HOME),
     ("work", "Work", "Paper cutout of Noodles swimming toward a floating frisbee", WORK),
@@ -302,7 +307,7 @@ if __name__ == "__main__":
         path = os.path.join(ROOT, slug, "index.html") if slug else os.path.join(ROOT, "index.html")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
-            f.write(page(slug, title, label, scene))
+            f.write(page(slug, title, label, scene, EXTRA.get(slug, "")))
         print("wrote", os.path.relpath(path, ROOT))
 
     chars = os.path.join(ROOT, "assets", "characters")

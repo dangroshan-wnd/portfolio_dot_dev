@@ -60,13 +60,21 @@ Every illustration on the site, from full scenes to small cameos, is drawn as la
 **Don't:**
 - Outline shapes. The only strokes allowed are thin cream "chalk" lines and motion lines.
 - Use gradients inside shapes, glossy highlights, realistic shading, or photos.
-- Use other illustration styles (pixel, ink, puppet, 3D). Those were tried in the demo and rejected.
+- Use other illustration styles (pixel, ink, puppet, 3D) on the site's pages. Those were tried in the demo and rejected. Games are the exception (see below).
 - Draw off-model dogs. See `docs/characters.md`.
 
 **Scenes are 1200×800 SVGs** with `preserveAspectRatio="xMidYMax slice"`, fitted by `site.js`.
 - Keep the top 200 units clear for the headline.
 - Keep the important action between x = 290 and 990, because on portrait screens only that part shows.
 - Give every scene SVG `role="img"` and an `aria-label` that describes it. Give purely decorative cameos `aria-hidden="true"` instead.
+
+## Games: their own art style
+
+Each game under `games/` may use whatever art style suits it (for example, *Shady's Snack Attack* is SNES-style pixel art). The dogs must still be recognizable in any style:
+- **Shady:** black and grey merle with white flecks, white blaze, bib and socks, pink tongue out, and clearly bigger than Noodles.
+- **Noodles:** apricot curls and a round face.
+
+If Dan appears in a game, he's a plain, inconspicuous figure: a grey sweatsuit and a navy beanie. Game pages still use the site's dark-blue page chrome (`style.css` tokens) around the game.
 
 ## Motion
 
