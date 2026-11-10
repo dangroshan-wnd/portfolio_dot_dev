@@ -30,7 +30,7 @@
       <nav class="game-tabs" id="tabs" aria-label="Choose a game"></nav>
       <a class="popout" id="popout" href="shadys-snack-attack/">Open full screen ↗</a>
     </div>
-    <iframe class="player" id="player" src="shadys-snack-attack/" title="Shady's Snack Attack" allow="autoplay; fullscreen"></iframe>
+    <iframe class="player" id="player" title="Game" allow="autoplay; fullscreen"></iframe>
   </main>
 
   <script>
@@ -44,9 +44,12 @@
     const player = document.getElementById('player');
     const popout = document.getElementById('popout');
 
+    // The embedded game is always loaded fresh (?v=...), so updates show up right away instead of
+    // waiting out GitHub Pages' 10-minute browser cache. Games are small, so this costs little.
+    let current = null;
     function select(slug, { push = false } = {}) {
       const game = GAMES.find(g => g.slug === slug) || GAMES[0];
-      if (!player.src.endsWith(`/${game.slug}/`)) player.src = `${game.slug}/`;
+      if (current !== game.slug) { current = game.slug; player.src = `${game.slug}/?v=${Date.now()}`; }
       player.title = game.title;
       popout.href = `${game.slug}/`;
       for (const a of tabs.children) a.toggleAttribute('aria-current', a.dataset.slug === game.slug);
