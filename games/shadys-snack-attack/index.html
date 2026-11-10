@@ -45,6 +45,11 @@
     .pad button.on { background: var(--games); color: #0d1526; border-color: var(--games); }
     .pad .arrow { font-size: 18px; }
 
+    /* embedded in the Games page: no header, just a small floating Sound button */
+    .embedded .bar { position: absolute; top: 8px; right: 8px; z-index: 3; padding: 0; border: 0; background: none; }
+    .embedded .bar a, .embedded .bar h1 { display: none; }
+    .embedded .bar button { font-size: .8rem; min-height: 30px; padding: 4px 8px; opacity: .9; }
+
     /* landscape phones: controls float over the bottom corners of the game */
     @media (orientation: landscape) {
       .touch .pad { position: absolute; left: 0; right: 0; bottom: 0; max-width: none; pointer-events: none; }
@@ -89,6 +94,9 @@
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
   if (isTouch) document.body.classList.add('touch');
+  let embedded = false;
+  try { embedded = window.self !== window.top; } catch { embedded = true; }
+  if (embedded) document.body.classList.add('embedded');
 
   const cv = document.getElementById('screen');
   const ctx = cv.getContext('2d');

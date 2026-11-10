@@ -1,9 +1,10 @@
-"""Generate the five "See you soon..." placeholder pages and the character reference SVGs.
+"""Generate the "See you soon..." placeholder pages (Home, Work, Projects, Movies) and the character reference SVGs.
 
 Style: PAPER CUTOUT (locked in 2026-11-09). See docs/style-guide.md and docs/characters.md.
 Characters: Noodles and Shady. Their canonical drawings live in this file
 (noodles() / shady() / noodles_leaping()) and are exported to assets/characters/.
 
+Pages with real content (currently Games) are hand-written and NOT generated here.
 Run:  python3 tools/build_placeholders.py
 """
 import os
@@ -29,7 +30,7 @@ S = dict(coat="#3a3f4a", dark="#2a2e37", merle="#8d96a8", white="#e8e6e1", nose=
          tongue="#f27d9c", mouth="#5a2232")
 
 
-def page(slug, title, label, scene, extra=""):
+def page(slug, title, label, scene):
     up = "../" if slug else ""
     links = []
     for s, name, var in PAGES:
@@ -63,7 +64,7 @@ def page(slug, title, label, scene, extra=""):
 
   <main>
     <div class="headline">
-      <h1>See you soon...</h1>{extra}
+      <h1>See you soon...</h1>
     </div>
     <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice" role="img" aria-label="{label}">
 {PAPER_DEFS}
@@ -269,29 +270,11 @@ MOVIES = f"""
       {cut(f'<path d="M1200 0 H950 Q990 320 960 700 H1200Z" fill="{CURTAIN}"/><path d="M1140 0 Q1160 350 1130 700 H1160 Q1186 350 1170 0Z M1050 0 Q1070 350 1035 700 H1065 Q1096 350 1080 0Z" fill="{CURTAIN_FOLD}"/>')}
       {cut(f'<path d="M0 0 H1200 V54 ' + ''.join('q-50 34 -100 0 ' for _ in range(12)) + f'Z" fill="{CURTAIN}"/><path d="M0 54 ' + ''.join('q50 34 100 0 ' for _ in range(12)) + f'" fill="none" stroke="{GOLD}" stroke-width="4"/>')}"""
 
-PITCH = "#22564a"
-GAMES = f"""
-{stars(STARS)}
-      {moon(390, 270)}
-      {cloud(900, 200, .9)}
-      {cut(f'<path d="M0 560 L140 510 L260 545 L400 490 L540 540 L680 500 L820 548 L960 495 L1100 535 L1200 505 V800 H0Z" fill="{LAYER[0]}"/>')}
-      {cut(f'<path d="M0 640 Q300 610 600 630 T1200 625 V800 H0Z" fill="{PITCH}"/>')}
-      <path d="M0 700 Q600 690 1200 700" fill="none" stroke="{PAPER_CREAM}" stroke-width="3" opacity=".35"/>
-      {cut(f'<g fill="none" stroke="{PAPER_CREAM}" stroke-width="2" opacity=".55"><path d="M930 572 V700 M952 572 V700 M974 572 V700 M996 572 V700 M1018 572 V700 M912 596 H1038 M912 620 H1038 M912 644 H1038 M912 668 H1038 M912 692 H1038"/></g><g fill="#f4f1ea"><rect x="900" y="560" width="12" height="140" rx="3"/><rect x="900" y="560" width="150" height="12" rx="3"/><rect x="1038" y="560" width="12" height="140" rx="3"/></g>')}
-      {cut(f'<g transform="translate(520 630) scale(1.2)">{shady()}</g>')}
-      <g class="bounce">{cut(f'<g transform="translate(720 688)"><g class="spin" style="animation-duration:1.4s">{soccer_ball()}</g></g>')}</g>"""
-
-# Extra headline content per placeholder (links to things that already exist).
-EXTRA = {
-    "games": '\n      <a class="play-link" href="shadys-snack-attack/">Play Shady\'s Snack Attack →</a>',
-}
-
 SPECS = [
     ("", "Home", "Paper cutout of Noodles and Shady face to face under the moon", HOME),
     ("work", "Work", "Paper cutout of Noodles swimming toward a floating frisbee", WORK),
     ("projects", "Projects", "Paper cutout of Noodles leaping to catch a frisbee", PROJECTS),
     ("movies", "Movies", "Paper cutout of Noodles and Shady playing tug-of-war on a theatre stage", MOVIES),
-    ("games", "Games", "Paper cutout of Shady with a bouncing soccer ball next to a goal", GAMES),
 ]
 
 
@@ -307,7 +290,7 @@ if __name__ == "__main__":
         path = os.path.join(ROOT, slug, "index.html") if slug else os.path.join(ROOT, "index.html")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as f:
-            f.write(page(slug, title, label, scene, EXTRA.get(slug, "")))
+            f.write(page(slug, title, label, scene))
         print("wrote", os.path.relpath(path, ROOT))
 
     chars = os.path.join(ROOT, "assets", "characters")

@@ -21,7 +21,11 @@ description: Add one of Dan's small vibe-coded games to dangroshan.dev under gam
    - **Pausing:** pause when the tab is hidden (`visibilitychange`), and leave the sound off until the first user interaction.
    - **Reduced motion:** respect `prefers-reduced-motion` for decorative effects.
 
-4. **Add it to the Games page.** The Games page is still a placeholder and its real layout hasn't been decided, so **ask Dan how to list the game** (card, list, thumbnail) before building that page. Don't invent the layout. If the Games page already has a list, follow its existing pattern.
+4. **Make it embeddable, and add it to the Games page.** The Games page (`games/index.html`) plays games inside an iframe, with one tab per game.
+   - Add `{ slug, title }` to the `GAMES` array in `games/index.html`. That creates the tab and the `#<slug>` link.
+   - In the game, detect embedding (`window.self !== window.top`) and hide its standalone header ("← Games" link and title), keeping only essential controls such as Sound. See `games/shadys-snack-attack/` for the pattern.
+   - The game must size itself to its own viewport (the iframe), not assume it has the whole window.
+   - Check it both embedded (`/games/#<slug>`) and standalone (`/games/<slug>/`).
 
 5. **Test it** by serving the site locally (`python3 -m http.server 8765`):
    - Play it at desktop size and at a phone size (Chrome DevTools device mode, with touch on).

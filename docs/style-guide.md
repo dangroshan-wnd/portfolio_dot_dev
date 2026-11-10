@@ -97,4 +97,5 @@ If Dan appears in a game, he's a plain, inconspicuous figure: a grey sweatsuit a
 - **Sidebar** on the left, 210px wide, in the order Home, Work, Projects, Movies, Games. The current page gets `aria-current="page"`, `--raised` and an inset bar in its section color.
 - **On phones** (700px wide or less) the sidebar becomes a horizontal top bar.
 - **Every page must work on phones and desktop.**
-- **Real-page layout is undecided.** Ask Dan before choosing a structure for Work, Projects, Movies or Games.
+- **Games page (decided 2026-11-09):** a tab bar of games plus an "Open full screen ↗" link, with the selected game embedded below in an iframe. There's no headline or placeholder scene.
+- **Real-page layout is undecided** for Work, Projects and Movies. Ask Dan before choosing a structure.

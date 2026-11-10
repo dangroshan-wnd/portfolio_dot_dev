@@ -77,15 +77,6 @@ main::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='2'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-.play-link {
-  pointer-events: auto;
-  font: 600 .95rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: var(--bg); background: var(--c, var(--games)); text-decoration: none;
-  padding: 12px 18px; border-radius: 999px;
-  box-shadow: 0 5px 12px rgba(3,7,18,.55);
-}
-.play-link:hover { filter: brightness(1.08); }
-.play-link:focus-visible { outline: 2px solid var(--cream); outline-offset: 3px; }
 main svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 .page-home main     { background: linear-gradient(#0a1120 0%, #13213f 55%, #1b3058 100%); }
@@ -93,6 +84,29 @@ main svg { position: absolute; inset: 0; width: 100%; height: 100%; display: blo
 .page-projects main { background: linear-gradient(#0b1729 0%, #12294a 60%, #18365e 100%); }
 .page-movies main   { background: #0c1226; }
 .page-games main    { background: linear-gradient(#0a0f20 0%, #111a38 60%, #18234a 100%); }
+
+/* ---------- Games page: embedded player ---------- */
+main.arcade { display: flex; flex-direction: column; background: var(--bg); }
+main.arcade::after { display: none; }
+.arcade-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 14px 20px; border-bottom: 1px solid var(--line);
+  font: 600 .92rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+.game-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.game-tabs a {
+  color: var(--muted); text-decoration: none; padding: 8px 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel);
+}
+.game-tabs a:hover { color: var(--text); background: var(--raised); }
+.game-tabs a[aria-current] { color: var(--bg); background: var(--games); border-color: var(--games); }
+.game-tabs a:focus-visible, .popout:focus-visible { outline: 2px solid var(--games); outline-offset: 2px; }
+.popout { color: var(--muted); text-decoration: none; }
+.popout:hover { color: var(--text); }
+.player { flex: 1; width: 100%; min-height: 0; border: 0; display: block; background: var(--bg); }
+@media (max-width: 700px) {
+  .arcade-bar { padding: 10px 12px; }
+}
 
 /* ---------- shared animations ---------- */
 .twinkle { animation: twinkle 2.4s ease-in-out infinite alternate; }
