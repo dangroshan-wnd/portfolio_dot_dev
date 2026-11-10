@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
   <title>Movies · Dan Groshan</title>
   <meta name="description" content="See you soon...">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
@@ -15,111 +16,83 @@
   <aside class="sidebar">
     <a class="brand" href="../">dangroshan.dev</a>
     <nav class="nav" aria-label="Pages">
-      <a href="../"><span class="dot" style="background:#f4a261"></span>Home</a>
-      <a href="../work/"><span class="dot" style="background:#3b4486"></span>Work</a>
-      <a href="../projects/"><span class="dot" style="background:#5fa858"></span>Projects</a>
-      <a href="../movies/" aria-current="page"><span class="dot" style="background:#8e5bb5"></span>Movies</a>
-      <a href="../games/"><span class="dot" style="background:#e07a8a"></span>Games</a>
+      <a href="../" style="--c:var(--home)"><span class="dot"></span>Home</a>
+      <a href="../work/" style="--c:var(--work)"><span class="dot"></span>Work</a>
+      <a href="../projects/" style="--c:var(--projects)"><span class="dot"></span>Projects</a>
+      <a href="../movies/" style="--c:var(--movies)" aria-current="page"><span class="dot"></span>Movies</a>
+      <a href="../games/" style="--c:var(--games)"><span class="dot"></span>Games</a>
     </nav>
   </aside>
 
   <main>
-    <h1>See you soon...</h1>
-    <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice" role="img"
-         aria-label="A goose and a red pig watching an outdoor movie with popcorn at dusk">
+    <div class="headline">
+      <h1>See you soon...</h1>
+      <span class="chip">Style demo 4/5 · Puppet</span>
+    </div>
+    <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Noodles and Shady as felt puppets playing tug-of-war on a puppet stage">
+
       <defs>
-        <g id="goose">
-          <g stroke="#f08a24" stroke-width="4" stroke-linecap="round">
-            <line x1="-6" y1="24" x2="-6" y2="54"/><line x1="12" y1="24" x2="12" y2="54"/>
-          </g>
-          <path d="M-10 53 h15 l-3 5 h-12z M8 53 h15 l-3 5 h-12z" fill="#f08a24"/>
-          <path d="M-44 -8 L-68 -20 L-56 6 Z" fill="#e6e1d6"/>
-          <ellipse cx="0" cy="0" rx="50" ry="30" fill="#f7f4ec" stroke="#d6cfbf" stroke-width="2"/>
-          <path d="M-32 -6 Q0 -22 28 -2 Q4 16 -32 -6Z" fill="#e4ddd0"/>
-          <path d="M26 -12 C40 -40 38 -66 54 -86" fill="none" stroke="#f7f4ec" stroke-width="18" stroke-linecap="round"/>
-          <circle cx="55" cy="-88" r="14" fill="#f7f4ec"/>
-          <path d="M66 -93 L84 -86 L66 -80 Z" fill="#f08a24"/>
-          <circle cx="59" cy="-92" r="2.6" fill="#2b1a14"/>
-        </g>
-        <g id="pig">
-          <g fill="#b9362c">
-            <rect x="-44" y="18" width="13" height="34" rx="5"/>
-            <rect x="-24" y="20" width="13" height="32" rx="5"/>
-            <rect x="18" y="20" width="13" height="32" rx="5"/>
-          </g>
-          <path d="M-55 -8 c-12 -6 -16 8 -7 9 c9 1 6 -13 -5 -12" fill="none" stroke="#b9362c" stroke-width="3" stroke-linecap="round"/>
-          <ellipse cx="-4" cy="0" rx="55" ry="38" fill="#d9473b"/>
-          <path d="M30 -40 L36 -58 L48 -42 Z" fill="#b9362c"/>
-          <circle cx="48" cy="-15" r="30" fill="#d9473b"/>
-          <path d="M50 -42 L64 -56 L66 -36 Z" fill="#c53d32"/>
-          <ellipse cx="78" cy="-8" rx="10" ry="13" fill="#ef7a6c"/>
-          <circle cx="81" cy="-12" r="2" fill="#8a2a22"/><circle cx="81" cy="-3" r="2" fill="#8a2a22"/>
-          <circle cx="58" cy="-23" r="3.5" fill="#2b1a14"/>
-          <circle cx="52" cy="-5" r="6" fill="#f08b7e" opacity=".6"/>
-          <path d="M60 8 q6 4 12 0" fill="none" stroke="#7a2520" stroke-width="2" stroke-linecap="round"/>
-          <path d="M22 16 L84 20" stroke="#d9473b" stroke-width="13" stroke-linecap="round"/>
-          <ellipse cx="88" cy="20" rx="5" ry="6.5" fill="#7a2520"/>
-        </g>
+        <filter id="felt" x="-15%" y="-15%" width="130%" height="130%">
+          <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="7" result="n"/>
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="7" xChannelSelector="R" yChannelSelector="G" result="d"/>
+          <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="1" seed="3" result="n2"/>
+          <feColorMatrix in="n2" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.2 .9" result="speck"/>
+          <feComposite in="speck" in2="d" operator="in" result="speckIn"/>
+          <feMerge><feMergeNode in="d"/><feMergeNode in="speckIn"/></feMerge>
+        </filter>
+        <radialGradient id="spot" cx="50%" cy="55%" r="50%">
+          <stop offset="0" stop-color="#3a4a8a" stop-opacity=".9"/><stop offset="1" stop-color="#0c1226" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="velvet" x1="0" x2="1">
+          <stop offset="0" stop-color="#4a1424"/><stop offset=".25" stop-color="#7a2236"/><stop offset=".5" stop-color="#561a2a"/><stop offset=".75" stop-color="#7a2236"/><stop offset="1" stop-color="#4a1424"/>
+        </linearGradient>
       </defs>
+      <ellipse cx="620" cy="460" rx="520" ry="330" fill="url(#spot)"/>
 
-      <g fill="#fff" opacity=".8">
-        <circle cx="90" cy="80" r="1.5"/><circle cx="260" cy="140" r="1.2"/><circle cx="1000" cy="90" r="1.6"/>
-        <circle cx="1130" cy="160" r="1.2"/><circle cx="180" cy="200" r="1"/><circle cx="1080" cy="40" r="1.3"/>
-      </g>
-      <path d="M0 230 Q300 300 600 230 Q900 300 1200 230" fill="none" stroke="#2a1d3d" stroke-width="2"/>
-      <g>
-        <circle class="twinkle" cx="75" cy="252" r="6" fill="#ffd36b" style="animation-delay:-0.00s"/>
-        <circle class="twinkle" cx="150" cy="263" r="6" fill="#ff9f68" style="animation-delay:-0.43s"/>
-        <circle class="twinkle" cx="225" cy="270" r="6" fill="#fff1b8" style="animation-delay:-0.86s"/>
-        <circle class="twinkle" cx="300" cy="272" r="6" fill="#ff7b8a" style="animation-delay:-1.29s"/>
-        <circle class="twinkle" cx="375" cy="270" r="6" fill="#ffd36b" style="animation-delay:-1.72s"/>
-        <circle class="twinkle" cx="450" cy="263" r="6" fill="#ff9f68" style="animation-delay:-2.15s"/>
-        <circle class="twinkle" cx="525" cy="252" r="6" fill="#fff1b8" style="animation-delay:-0.18s"/>
-        <circle class="twinkle" cx="675" cy="252" r="6" fill="#ff7b8a" style="animation-delay:-0.61s"/>
-        <circle class="twinkle" cx="750" cy="263" r="6" fill="#ffd36b" style="animation-delay:-1.04s"/>
-        <circle class="twinkle" cx="825" cy="270" r="6" fill="#ff9f68" style="animation-delay:-1.47s"/>
-        <circle class="twinkle" cx="900" cy="272" r="6" fill="#fff1b8" style="animation-delay:-1.90s"/>
-        <circle class="twinkle" cx="975" cy="270" r="6" fill="#ff7b8a" style="animation-delay:-2.33s"/>
-        <circle class="twinkle" cx="1050" cy="263" r="6" fill="#ffd36b" style="animation-delay:-0.36s"/>
-        <circle class="twinkle" cx="1125" cy="252" r="6" fill="#ff9f68" style="animation-delay:-0.79s"/>
-      </g>
-
-      <path d="M0 590 Q300 560 620 585 T1200 575 V800 H0Z" fill="#2f2a4a"/>
-      <polygon points="215,585 600,300 960,300 960,500 600,500" fill="#fff6dc" opacity=".07"/>
-
-      <g fill="#3a3157">
-        <rect x="620" y="490" width="14" height="110"/><rect x="926" y="490" width="14" height="110"/>
-      </g>
-      <rect x="586" y="286" width="388" height="228" rx="6" fill="#1e1730"/>
-      <g class="twinkle" style="animation-duration:.18s">
-        <rect x="600" y="300" width="360" height="200" fill="#fdf3dc"/>
-      </g>
-      <g opacity=".85">
-        <rect x="600" y="300" width="360" height="200" fill="#bfe0ee" opacity=".55"/>
-        <circle cx="850" cy="380" r="26" fill="#ffd36b"/>
-        <path d="M600 450 Q680 425 760 445 T960 440 V500 H600Z" fill="#f2cf93"/>
-        <path d="M600 475 Q720 460 820 478 T960 470 V500 H600Z" fill="#e3a463"/>
-        <g transform="translate(700 365) rotate(-12)"><g class="flutter">
-          <polygon points="0,-20 15,0 0,32 -15,0" fill="#2a9d8f"/><polygon points="0,-20 15,0 0,0" fill="#e9c46a"/><polygon points="0,0 -15,0 0,32" fill="#e9c46a"/>
-        </g></g>
-        <path d="M700 380 Q720 430 740 470" fill="none" stroke="#5b3a29" stroke-width="1"/>
-      </g>
-
-      <path d="M0 640 Q350 615 700 640 T1200 630 V800 H0Z" fill="#26213d"/>
-
-      <path d="M280 690 L700 690 L745 738 L235 738Z" fill="#c0392b"/>
-      <path d="M340 690 L322 738 M420 690 L410 738 M500 690 L497 738 M580 690 L584 738 M660 690 L672 738 M262 714 H722" stroke="#f6e7c8" stroke-width="5" opacity=".75"/>
-
-      <use href="#pig" transform="translate(380 655)"/>
-      <g transform="translate(482 662)">
-        <g fill="#fff6dc">
-          <circle cx="-14" cy="-4" r="9"/><circle cx="0" cy="-10" r="10"/><circle cx="14" cy="-4" r="9"/><circle cx="-6" cy="-14" r="7"/><circle cx="8" cy="-16" r="7"/>
+      <g class="tug">
+        <!-- Noodles puppet (left, facing right) -->
+        <g filter="url(#felt)" transform="rotate(-4 460 520)">
+          <path d="M370 640 q0 -90 90 -96 q90 6 90 96z" fill="#d99a58"/>
+          <circle cx="460" cy="480" r="78" fill="#e3a868"/>
+          <g fill="#e8b273"><circle cx="410" cy="418" r="24"/><circle cx="448" cy="402" r="26"/><circle cx="490" cy="408" r="24"/><circle cx="520" cy="432" r="18"/></g>
+          <path d="M392 450 q-50 20 -34 96 q30 8 42 -24 q4 -40 -8 -72z" fill="#c98a4c"/>
+          <path d="M470 520 q60 -24 92 4 q-10 52 -60 50 q-34 -4 -32 -54z" fill="#3a1020"/>
+          <path d="M470 520 q60 -24 92 4 q-36 -4 -92 -4z" fill="#f0c48e"/>
+          <ellipse cx="548" cy="498" rx="20" ry="16" fill="#2e2420"/>
         </g>
-        <path d="M-24 0 H24 L18 52 H-18Z" fill="#fff"/>
-        <path d="M-14 0 L-10 52 H-2 L-4 0Z M6 0 L4 52 H12 L16 0Z" fill="#e63946"/>
-      </g>
-      <use href="#goose" transform="translate(585 650)"/>
+        <g class="jiggle"><circle cx="458" cy="456" r="20" fill="#fff" stroke="#1a1a1a" stroke-width="2"/><circle cx="466" cy="460" r="9" fill="#111"/></g>
+        <g class="jiggle" style="animation-delay:-.25s"><circle cx="500" cy="452" r="17" fill="#fff" stroke="#1a1a1a" stroke-width="2"/><circle cx="507" cy="457" r="8" fill="#111"/></g>
 
+        <!-- rope -->
+        <path d="M530 548 Q640 572 750 540" fill="none" stroke="#d9c08a" stroke-width="14" stroke-linecap="round"/>
+        <path d="M530 548 Q640 572 750 540" fill="none" stroke="#a88a52" stroke-width="14" stroke-dasharray="4 10"/>
+
+        <!-- Shady puppet (right, facing left, bigger) -->
+        <g filter="url(#felt)" transform="rotate(5 800 500)">
+          <path d="M690 640 q0 -110 110 -116 q110 6 110 116z" fill="#353a45"/>
+          <ellipse cx="868" cy="600" rx="34" ry="40" fill="#e8e6e1"/>
+          <circle cx="810" cy="450" r="96" fill="#3a3f4a"/>
+          <g fill="#8d96a8"><ellipse cx="850" cy="400" rx="26" ry="18"/><ellipse cx="770" cy="470" rx="16" ry="12"/><ellipse cx="880" cy="470" rx="14" ry="10"/></g>
+          <g fill="#e8e6e1"><circle cx="820" cy="380" r="5"/><circle cx="868" cy="440" r="4"/><circle cx="790" cy="420" r="4"/><circle cx="845" cy="500" r="5"/><circle cx="760" cy="440" r="3.5"/></g>
+          <path d="M792 360 q10 60 -10 110 q-14 -10 -10 -60 q4 -40 20 -50z" fill="#e8e6e1"/>
+          <path d="M890 380 q66 20 50 120 q-36 12 -50 -24 q-6 -56 0 -96z" fill="#2a2e37"/>
+          <path d="M790 504 q-72 -36 -112 4 q16 62 70 60 q40 -6 42 -64z" fill="#3a1020"/>
+          <path d="M790 504 q-72 -36 -112 4 q42 -6 112 -4z" fill="#8d96a8"/>
+          <path d="M720 540 q-6 56 18 60 q24 0 22 -54z" fill="#f27d9c"/>
+          <ellipse cx="690" cy="482" rx="24" ry="19" fill="#15171c"/>
+        </g>
+        <g class="jiggle" style="animation-delay:-.1s"><circle cx="770" cy="420" r="22" fill="#fff" stroke="#1a1a1a" stroke-width="2"/><circle cx="761" cy="426" r="10" fill="#111"/></g>
+        <g class="jiggle" style="animation-delay:-.35s"><circle cx="818" cy="414" r="25" fill="#fff" stroke="#1a1a1a" stroke-width="2"/><circle cx="806" cy="420" r="11" fill="#111"/></g>
+      </g>
+
+      <!-- puppet stage -->
+      <rect x="0" y="620" width="1200" height="180" fill="#3b2418"/>
+      <rect x="0" y="620" width="1200" height="14" fill="#5a3824"/>
+      <rect x="0" y="634" width="1200" height="3" fill="#d4a84a"/>
+      <path d="M0 0 H250 Q210 300 240 620 H0Z" fill="url(#velvet)"/>
+      <path d="M1200 0 H950 Q990 300 960 620 H1200Z" fill="url(#velvet)"/>
+      <path d="M0 0 H1200 V54 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0 q-50 34 -100 0Z" fill="#7a2236"/>
+      <path d="M0 54 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0 q50 34 100 0" fill="none" stroke="#d4a84a" stroke-width="4"/>
     </svg>
   </main>
   <script src="../site.js"></script>

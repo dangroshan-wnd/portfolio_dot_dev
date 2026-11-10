@@ -1,9 +1,32 @@
+/* dangroshan.dev — dark-blue theme. See docs/style-guide.md once it exists. */
+:root {
+  --bg:        #0d1526;
+  --panel:     #0f1a2e;
+  --raised:    #17243f;
+  --line:      #22324f;
+  --text:      #e8edf7;
+  --muted:     #97a6c4;
+  --cream:     #f3ead8;
+
+  /* character accents */
+  --noodles:   #e3a868;   /* apricot gold */
+  --shady:     #8d96a8;   /* merle grey */
+  --tongue:    #f27d9c;   /* Shady's tongue pink */
+
+  /* section accents */
+  --home:      #e3a868;
+  --work:      #6d8cff;
+  --projects:  #5fc28a;
+  --movies:    #b084e8;
+  --games:     #f2789c;
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
   display: flex;
-  background: #fff8ec;
-  color: #4a3426;
+  background: var(--bg);
+  color: var(--text);
   font-family: "Fraunces", Georgia, serif;
   overflow: hidden;
 }
@@ -13,75 +36,81 @@ body {
   flex: 0 0 210px;
   display: flex; flex-direction: column;
   padding: 28px 16px;
-  background: #fff8ec;
-  border-right: 1px solid #eadfcd;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
   z-index: 2;
 }
 .brand {
   margin: 0 10px 24px;
   font-style: italic; font-weight: 600; font-size: 1.2rem;
-  color: #4a3426; text-decoration: none;
+  color: var(--cream); text-decoration: none;
 }
 .nav { display: flex; flex-direction: column; gap: 4px; }
 .nav a {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 14px; border-radius: 12px;
   font: 600 0.98rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  color: #4a3426; text-decoration: none;
-  transition: background .15s;
+  color: var(--muted); text-decoration: none;
+  transition: background .15s, color .15s;
 }
-.nav a:hover { background: #f5e7d0; }
-.nav a[aria-current="page"] { background: #4a3426; color: #fff8ec; }
-.nav a:focus-visible { outline: 2px solid #e76f51; outline-offset: 2px; }
-.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.nav a:hover { background: var(--raised); color: var(--text); }
+.nav a[aria-current="page"] { background: var(--raised); color: var(--text); box-shadow: inset 3px 0 0 var(--c); }
+.nav a:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--c); }
 
-/* ---------- scene ---------- */
+/* ---------- placeholder scene ---------- */
 main { position: relative; flex: 1; overflow: hidden; }
-main h1 {
-  position: absolute; z-index: 1; left: 0; right: 0; top: 9vh;
-  margin: 0; padding: 0 16px; text-align: center;
+.headline {
+  position: absolute; z-index: 1; left: 0; right: 0; top: 8vh;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 0 16px; text-align: center; pointer-events: none;
+}
+.headline h1 {
+  margin: 0;
   font-style: italic; font-weight: 600;
   font-size: clamp(2.4rem, 8vw, 5.5rem);
-  text-shadow: 0 2px 0 rgba(255,255,255,.4);
+  color: var(--cream);
+  text-shadow: 0 0 24px rgba(243,234,216,.25);
+}
+.chip {
+  font: 600 .78rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: .06em; text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 6px 12px; background: rgba(13,21,38,.55);
 }
 main svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
-.page-home main     { background: linear-gradient(#8ecbea 0%, #bfe0ee 40%, #fde3b8 72%, #f6cf95 100%); }
-.page-home h1       { color: #5b3a29; }
-.page-work main     { background: linear-gradient(#0f1736 0%, #1f2a5c 50%, #3b4486 100%); }
-.page-work h1       { color: #f4efd6; text-shadow: 0 0 22px rgba(244,239,214,.35); }
-.page-projects main { background: linear-gradient(#8fd0ec 0%, #c6e8f2 55%, #e7f5e2 100%); }
-.page-projects h1   { color: #2d4b3c; }
-.page-movies main   { background: linear-gradient(#1c1533 0%, #3d2a5e 45%, #8a4f7d 75%, #c8737a 100%); }
-.page-movies h1     { color: #f6e7c8; text-shadow: 0 0 22px rgba(255,211,107,.3); }
-.page-games main   { background: linear-gradient(#f0a1a0 0%, #f7c3b1 45%, #fde3d0 100%); }
-.page-games h1      { color: #7a3343; }
+.page-home main     { background: linear-gradient(#0a1120 0%, #13213f 55%, #1b3058 100%); }
+.page-work main     { background: linear-gradient(#08101f 0%, #0f1d3a 60%, #142849 100%); }
+.page-projects main { background: linear-gradient(#0b1729 0%, #12294a 60%, #18365e 100%); }
+.page-movies main   { background: #0c1226; }
+.page-games main    { background: linear-gradient(#0a0f20 0%, #111a38 60%, #18234a 100%); }
 
 /* ---------- shared animations ---------- */
-.drift   { animation: drift 70s linear infinite; }
-.drift.slow { animation-duration: 110s; animation-delay: -40s; }
-.flutter { transform-box: fill-box; transform-origin: 50% 20%; animation: flutter 1.6s ease-in-out infinite alternate; }
-.tail    { transform-box: fill-box; transform-origin: 50% 0; animation: wiggle 1.1s ease-in-out infinite alternate; }
-.sway    { transform-box: view-box; animation: sway 5s ease-in-out infinite alternate; }
-.bob     { transform-box: view-box; animation: bob 4s ease-in-out infinite alternate; }
-.float   { animation: float 5s ease-in-out infinite alternate; }
 .twinkle { animation: twinkle 2.4s ease-in-out infinite alternate; }
-.flicker { transform-box: fill-box; transform-origin: 50% 100%; animation: flicker .35s ease-in-out infinite alternate; }
-.flap    { transform-box: fill-box; transform-origin: 100% 50%; animation: flap .3s ease-in-out infinite alternate; }
-.flake   { animation: fall 9s linear infinite; }
-.jolt    { animation: jolt .5s ease-in-out infinite alternate; }
+.wag     { transform-box: fill-box; transform-origin: 90% 90%; animation: wag .45s ease-in-out infinite alternate; }
+.pant    { transform-box: fill-box; transform-origin: 50% 0; animation: pant .35s ease-in-out infinite alternate; }
+.float   { animation: float 2.6s ease-in-out infinite alternate; }
+.paddle  { animation: paddle 1.6s ease-in-out infinite alternate; }
+.ripple  { transform-box: fill-box; transform-origin: center; animation: ripple 3s ease-out infinite; }
+.spin    { transform-box: fill-box; transform-origin: center; animation: spin .6s linear infinite; }
+.tug     { animation: tug 1.1s ease-in-out infinite alternate; }
+.jiggle  { animation: jiggle .5s ease-in-out infinite alternate; }
+.hop     { animation: hop .8s steps(2) infinite; }
+.bounce  { animation: bounce 1s cubic-bezier(.5,0,.5,1) infinite alternate; }
 
-@keyframes drift   { from { transform: translateX(-300px); } to { transform: translateX(1500px); } }
-@keyframes flutter { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
-@keyframes wiggle  { from { transform: skewX(-8deg); } to { transform: skewX(8deg); } }
-@keyframes sway    { from { transform: rotate(-2.5deg); } to { transform: rotate(2.5deg); } }
-@keyframes bob     { from { transform: translateY(-3px) rotate(-1.5deg); } to { transform: translateY(3px) rotate(1.5deg); } }
-@keyframes float   { from { transform: translateY(-10px); } to { transform: translateY(10px); } }
 @keyframes twinkle { from { opacity: .25; } to { opacity: 1; } }
-@keyframes flicker { from { transform: scale(.85, .8); } to { transform: scale(1.05, 1.15); } }
-@keyframes flap    { from { transform: rotate(-10deg); } to { transform: rotate(8deg); } }
-@keyframes fall    { from { transform: translate(0, -60px); } to { transform: translate(40px, 880px); } }
-@keyframes jolt    { from { transform: translate(0, 0); } to { transform: translate(2px, -2px); } }
+@keyframes wag     { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+@keyframes pant    { from { transform: scaleY(.85); } to { transform: scaleY(1.1); } }
+@keyframes float   { from { transform: translateY(-10px); } to { transform: translateY(10px); } }
+@keyframes paddle  { from { transform: translateY(-3px) rotate(-1deg); } to { transform: translateY(3px) rotate(1deg); } }
+@keyframes ripple  { from { transform: scale(.6); opacity: .9; } to { transform: scale(1.8); opacity: 0; } }
+@keyframes spin    { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes tug     { from { transform: translateX(-14px); } to { transform: translateX(14px); } }
+@keyframes jiggle  { from { transform: translate(-2px, 1px); } to { transform: translate(2px, -1px); } }
+@keyframes hop     { from { transform: translateY(0); } to { transform: translateY(-16px); } }
+@keyframes bounce  { from { transform: translateY(-120px); } to { transform: translateY(0); } }
 
 @media (prefers-reduced-motion: reduce) {
   main svg * { animation: none !important; }
@@ -92,11 +121,12 @@ main svg { position: absolute; inset: 0; width: 100%; height: 100%; display: blo
   body { flex-direction: column; }
   .sidebar {
     flex: none; flex-direction: row; align-items: center;
-    padding: 10px 12px; border-right: 0; border-bottom: 1px solid #eadfcd;
+    padding: 10px 12px; border-right: 0; border-bottom: 1px solid var(--line);
     overflow-x: auto;
   }
   .brand { display: none; }
   .nav { flex-direction: row; gap: 4px; }
   .nav a { padding: 8px 12px; font-size: .92rem; }
+  .nav a[aria-current="page"] { box-shadow: inset 0 -3px 0 var(--c); }
   .dot { width: 8px; height: 8px; }
 }

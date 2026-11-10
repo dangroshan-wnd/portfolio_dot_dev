@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
   <title>Projects · Dan Groshan</title>
   <meta name="description" content="See you soon...">
   <link rel="icon" href="../favicon.svg" type="image/svg+xml">
@@ -15,100 +16,80 @@
   <aside class="sidebar">
     <a class="brand" href="../">dangroshan.dev</a>
     <nav class="nav" aria-label="Pages">
-      <a href="../"><span class="dot" style="background:#f4a261"></span>Home</a>
-      <a href="../work/"><span class="dot" style="background:#3b4486"></span>Work</a>
-      <a href="../projects/" aria-current="page"><span class="dot" style="background:#5fa858"></span>Projects</a>
-      <a href="../movies/"><span class="dot" style="background:#8e5bb5"></span>Movies</a>
-      <a href="../games/"><span class="dot" style="background:#e07a8a"></span>Games</a>
+      <a href="../" style="--c:var(--home)"><span class="dot"></span>Home</a>
+      <a href="../work/" style="--c:var(--work)"><span class="dot"></span>Work</a>
+      <a href="../projects/" style="--c:var(--projects)" aria-current="page"><span class="dot"></span>Projects</a>
+      <a href="../movies/" style="--c:var(--movies)"><span class="dot"></span>Movies</a>
+      <a href="../games/" style="--c:var(--games)"><span class="dot"></span>Games</a>
     </nav>
   </aside>
 
   <main>
-    <h1>See you soon...</h1>
-    <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice" role="img"
-         aria-label="A goose and a red pig riding a hot-air balloon over green hills">
+    <div class="headline">
+      <h1>See you soon...</h1>
+      <span class="chip">Style demo 3/5 · Paper cutout</span>
+    </div>
+    <svg viewBox="0 0 1200 800" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Noodles leaping to catch a frisbee, as a paper cutout">
+
       <defs>
-        <g id="goose">
-          <g stroke="#f08a24" stroke-width="4" stroke-linecap="round">
-            <line x1="-6" y1="24" x2="-6" y2="54"/><line x1="12" y1="24" x2="12" y2="54"/>
-          </g>
-          <path d="M-10 53 h15 l-3 5 h-12z M8 53 h15 l-3 5 h-12z" fill="#f08a24"/>
-          <path d="M-44 -8 L-68 -20 L-56 6 Z" fill="#e6e1d6"/>
-          <ellipse cx="0" cy="0" rx="50" ry="30" fill="#f7f4ec" stroke="#d6cfbf" stroke-width="2"/>
-          <path d="M-32 -6 Q0 -22 28 -2 Q4 16 -32 -6Z" fill="#e4ddd0"/>
-          <path d="M26 -12 C40 -40 38 -66 54 -86" fill="none" stroke="#f7f4ec" stroke-width="18" stroke-linecap="round"/>
-          <circle cx="55" cy="-88" r="14" fill="#f7f4ec"/>
-          <path d="M66 -93 L84 -86 L66 -80 Z" fill="#f08a24"/>
-          <circle cx="59" cy="-92" r="2.6" fill="#2b1a14"/>
-        </g>
-        <g id="pig">
-          <g fill="#b9362c">
-            <rect x="-44" y="18" width="13" height="34" rx="5"/>
-            <rect x="-24" y="20" width="13" height="32" rx="5"/>
-            <rect x="18" y="20" width="13" height="32" rx="5"/>
-          </g>
-          <path d="M-55 -8 c-12 -6 -16 8 -7 9 c9 1 6 -13 -5 -12" fill="none" stroke="#b9362c" stroke-width="3" stroke-linecap="round"/>
-          <ellipse cx="-4" cy="0" rx="55" ry="38" fill="#d9473b"/>
-          <path d="M30 -40 L36 -58 L48 -42 Z" fill="#b9362c"/>
-          <circle cx="48" cy="-15" r="30" fill="#d9473b"/>
-          <path d="M50 -42 L64 -56 L66 -36 Z" fill="#c53d32"/>
-          <ellipse cx="78" cy="-8" rx="10" ry="13" fill="#ef7a6c"/>
-          <circle cx="81" cy="-12" r="2" fill="#8a2a22"/><circle cx="81" cy="-3" r="2" fill="#8a2a22"/>
-          <circle cx="58" cy="-23" r="3.5" fill="#2b1a14"/>
-          <circle cx="52" cy="-5" r="6" fill="#f08b7e" opacity=".6"/>
-          <path d="M60 8 q6 4 12 0" fill="none" stroke="#7a2520" stroke-width="2" stroke-linecap="round"/>
-          <path d="M22 16 L84 20" stroke="#d9473b" stroke-width="13" stroke-linecap="round"/>
-          <ellipse cx="88" cy="20" rx="5" ry="6.5" fill="#7a2520"/>
-        </g>
+        <filter id="paper" x="-10%" y="-10%" width="120%" height="130%">
+          <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#030712" flood-opacity=".55"/>
+        </filter>
+        <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="2"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .06 0"/></filter>
       </defs>
-
-      <g class="drift" fill="#fff" opacity=".9">
-        <ellipse cx="0" cy="130" rx="60" ry="20"/><ellipse cx="35" cy="116" rx="38" ry="22"/><ellipse cx="-30" cy="122" rx="30" ry="16"/>
+      <circle class="twinkle" cx="90" cy="90" r="1.6" fill="#f3ead8" style="animation-delay:-0.00s"/>
+      <circle class="twinkle" cx="330" cy="70" r="2" fill="#f3ead8" style="animation-delay:-0.37s"/>
+      <circle class="twinkle" cx="520" cy="250" r="1.4" fill="#f3ead8" style="animation-delay:-0.74s"/>
+      <circle class="twinkle" cx="700" cy="230" r="1.8" fill="#f3ead8" style="animation-delay:-1.11s"/>
+      <circle class="twinkle" cx="1090" cy="170" r="1.3" fill="#f3ead8" style="animation-delay:-1.48s"/>
+      <circle class="twinkle" cx="1060" cy="330" r="1.2" fill="#f3ead8" style="animation-delay:-1.85s"/>
+      <circle class="twinkle" cx="470" cy="330" r="1.3" fill="#f3ead8" style="animation-delay:-2.22s"/>
+      <circle class="twinkle" cx="80" cy="420" r="1.5" fill="#f3ead8" style="animation-delay:-0.19s"/>
+      <circle class="twinkle" cx="40" cy="200" r="1.1" fill="#f3ead8" style="animation-delay:-0.56s"/>
+      <g filter="url(#paper)">
+        <circle cx="950" cy="250" r="54" fill="#f3e6c4"/>
+        <circle cx="972" cy="236" r="44" fill="#12294a"/>
       </g>
-      <g class="drift slow" fill="#fff" opacity=".75">
-        <ellipse cx="0" cy="260" rx="48" ry="15"/><ellipse cx="24" cy="249" rx="28" ry="17"/>
+      <g filter="url(#paper)" fill="#2b4a75">
+        <path d="M120 200 q10 -30 40 -26 q14 -24 44 -12 q30 -6 34 22 q20 4 18 22 h-150 q-6 -4 14 -6z"/>
       </g>
-      <path d="M210 300 q10 -8 20 0 q10 -8 20 0 M260 275 q8 -6 16 0 q8 -6 16 0 M960 330 q10 -8 20 0 q10 -8 20 0" fill="none" stroke="#4a3426" stroke-width="2.2" stroke-linecap="round"/>
-
-      <path d="M0 600 Q200 540 420 580 T860 560 T1200 570 V800 H0Z" fill="#a9d68f"/>
-      <path d="M0 650 Q300 600 620 640 T1200 630 V800 H0Z" fill="#86c271"/>
-      <g>
-        <rect x="176" y="600" width="7" height="22" fill="#7a5a3a"/><circle cx="180" cy="592" r="18" fill="#4f9a4a"/>
-        <rect x="226" y="612" width="6" height="18" fill="#7a5a3a"/><circle cx="229" cy="606" r="14" fill="#5aa653"/>
-        <rect x="976" y="584" width="7" height="22" fill="#7a5a3a"/><circle cx="980" cy="576" r="18" fill="#4f9a4a"/>
-        <rect x="1036" y="598" width="6" height="18" fill="#7a5a3a"/><circle cx="1039" cy="592" r="14" fill="#5aa653"/>
+      <g filter="url(#paper)"><path d="M0 560 L120 500 L220 540 L350 470 L470 530 L600 480 L740 545 L860 490 L1000 530 L1200 470 V800 H0Z" fill="#1d3a63"/></g>
+      <g filter="url(#paper)"><path d="M0 620 Q200 580 420 610 T860 600 T1200 590 V800 H0Z" fill="#26497a"/></g>
+      <g filter="url(#paper)">
+        <path d="M0 690 L30 676 L60 690 L90 674 L120 690 L150 676 L180 690 L210 674 L240 690 L270 676 L300 690 L330 674 L360 690 L390 676 L420 690 L450 674 L480 690 L510 676 L540 690 L570 674 L600 690 L630 676 L660 690 L690 674 L720 690 L750 676 L780 690 L810 674 L840 690 L870 676 L900 690 L930 674 L960 690 L990 676 L1020 690 L1050 674 L1080 690 L1110 676 L1140 690 L1170 674 L1200 690 V800 H0Z" fill="#2f5a8e"/>
       </g>
-      <path d="M0 700 Q350 670 700 700 T1200 690 V800 H0Z" fill="#67ac5a"/>
-      <g>
-        <circle cx="120" cy="740" r="5" fill="#f4d35e"/><circle cx="300" cy="760" r="5" fill="#fff"/><circle cx="480" cy="730" r="5" fill="#e76f8a"/>
-        <circle cx="700" cy="770" r="5" fill="#f4d35e"/><circle cx="880" cy="735" r="5" fill="#fff"/><circle cx="1080" cy="755" r="5" fill="#e76f8a"/>
+      <g filter="url(#paper)" fill="#3f6ea6">
+        <path d="M180 690 v-60 l-16 20 M180 650 l18 -24" stroke="#3f6ea6" stroke-width="6" stroke-linecap="round"/>
+        <path d="M1020 690 v-50 l-14 16 M1020 660 l14 -18" stroke="#3f6ea6" stroke-width="6" stroke-linecap="round"/>
       </g>
-
-      <clipPath id="envelope">
-        <path d="M0 -210 C120 -210 150 -100 95 -5 L40 50 H-40 L-95 -5 C-150 -100 -120 -210 0 -210Z"/>
-      </clipPath>
+      <ellipse cx="600" cy="712" rx="80" ry="10" fill="#0b1729" opacity=".5"/>
       <g class="float">
-        <g transform="translate(610 390) scale(.85)">
-          <g stroke="#6b4b3a" stroke-width="2">
-            <line x1="-40" y1="50" x2="-78" y2="168"/><line x1="40" y1="50" x2="78" y2="168"/>
-            <line x1="-14" y1="52" x2="-22" y2="168"/><line x1="14" y1="52" x2="22" y2="168"/>
+        <g filter="url(#paper)" transform="translate(560 440) rotate(-12) scale(1.3)">
+          <g fill="#c98a4c">
+            <rect x="-40" y="0" width="16" height="44" rx="8" transform="rotate(62 -32 6)"/>
+            <rect x="26" y="0" width="16" height="44" rx="8" transform="rotate(-70 34 6)"/>
           </g>
-          <g clip-path="url(#envelope)">
-            <rect x="-160" y="-220" width="320" height="280" fill="#f6f1e4"/>
-            <g fill="#e63946"><rect x="-135" y="-220" width="30" height="280"/><rect x="-15" y="-220" width="30" height="280"/><rect x="105" y="-220" width="30" height="280"/></g>
-            <g fill="#f4a261"><rect x="-75" y="-220" width="30" height="280"/><rect x="45" y="-220" width="30" height="280"/></g>
-            <rect x="-160" y="-62" width="320" height="14" fill="#264653" opacity=".85"/>
-            <ellipse cx="-55" cy="-150" rx="16" ry="40" fill="#fff" opacity=".25"/>
+          <g fill="#e3a868">
+            <rect x="-26" y="2" width="16" height="42" rx="8" transform="rotate(50 -18 6)"/>
+            <rect x="38" y="2" width="16" height="42" rx="8" transform="rotate(-82 46 6)"/>
           </g>
-          <rect x="-14" y="48" width="28" height="12" rx="3" fill="#4d4d4d"/>
-          <path class="flicker" d="M0 47 C-9 35 -4 24 0 14 C4 24 9 35 0 47Z" fill="#ffb347"/>
-          <use href="#goose" transform="translate(-40 156) scale(.78)"/>
-          <use href="#pig" transform="translate(24 158) scale(.75)"/>
-          <rect x="-88" y="168" width="176" height="72" rx="8" fill="#b07a45"/>
-          <path d="M-88 190 H88 M-88 212 H88 M-44 168 V240 M0 168 V240 M44 168 V240" stroke="#8f5f33" stroke-width="2"/>
-          <rect x="-94" y="162" width="188" height="12" rx="6" fill="#8f5f33"/>
+          <g fill="#c98a4c"><circle cx="-56" cy="-8" r="11"/><circle cx="-68" cy="-14" r="9"/><circle cx="-78" cy="-16" r="7"/></g>
+          <ellipse cx="0" cy="0" rx="54" ry="26" fill="#e3a868"/>
+          <g fill="#e3a868"><circle cx="-36" cy="-18" r="10"/><circle cx="-16" cy="-24" r="10"/><circle cx="4" cy="-25" r="10"/><circle cx="22" cy="-22" r="10"/></g>
+          <circle cx="50" cy="-30" r="26" fill="#e3a868"/>
+          <g fill="#e3a868"><circle cx="34" cy="-50" r="10"/><circle cx="50" cy="-56" r="11"/><circle cx="66" cy="-50" r="9"/></g>
+          <path d="M30 -38 q-24 -4 -30 -26 q16 -2 28 12z" fill="#c98a4c"/>
+          <ellipse cx="72" cy="-20" rx="15" ry="12" fill="#f0c48e"/>
+          <ellipse cx="85" cy="-25" rx="6" ry="5" fill="#2e2420"/>
+          <circle cx="58" cy="-37" r="3.6" fill="#1d1512"/><circle cx="59.2" cy="-38.2" r="1.1" fill="#fff"/>
+          <path d="M70 -10 q8 6 16 -2" fill="#5a2232"/>
         </g>
+        <g filter="url(#paper)" transform="translate(682 350) rotate(-14)">
+          <g class="spin"><ellipse cx="0" cy="0" rx="32" ry="11" fill="#e85d4a"/><ellipse cx="0" cy="-2" rx="20" ry="5" fill="#c94a3a"/></g>
+        </g>
+        <path d="M730 330 q30 -10 60 4 M736 352 q26 0 50 12" fill="none" stroke="#f3e6c4" stroke-width="3" stroke-linecap="round" opacity=".6"/>
       </g>
+      <rect width="1200" height="800" filter="url(#grain)" pointer-events="none"/>
     </svg>
   </main>
   <script src="../site.js"></script>
