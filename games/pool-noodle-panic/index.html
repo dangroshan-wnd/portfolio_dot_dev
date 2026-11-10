@@ -119,24 +119,29 @@
   ]), NO);
   const NO_W = 13, NO_H = 13, NO_HEAD = { x: 6.5, y: 3.5 };   // hitbox centre within the sprite
 
-  // Shady — Mini Aussiedoodle, sitting on the deck, from above (bigger than Noodles)
-  const SHP = { k: '#3a3f4a', d: '#2a2e37', g: '#8d96a8', w: '#e8e6e1', n: '#15171c', p: '#f27d9c', e: '#0b0c10' };
+  // Shady — Mini Aussiedoodle, sitting and facing the camera (SNES-style 3/4 view, so she reads as a dog):
+  // long floppy ears, white blaze, grey muzzle, tongue out, white bib + socks, merle flecks. Bigger than Noodles.
+  const SHP = { k: '#3a3f4a', d: '#2a2e37', g: '#8d96a8', w: '#e8e6e1', n: '#15171c', p: '#f27d9c', m: '#5a2232', e: '#0b0c10' };
   const shadyDeck = sprite([
-    '..dkkkkkkd..',
-    '.ddkkwwkkdd.',
-    '.ddekwwkedd.',
-    '.dd.kggk.dd.',
-    '.....gn.....',
-    '.....pp.....',
-    '...kkkkkk...',
-    '..kkgkkwkk..',
-    '..kwkkkkgk..',
-    '..kkkgkkkk..',
-    '..wwkkkkww..',
-    '...kkkkkk...',
-    '.....kk.....',
-    '......kk....',
+    '....kkkkkkkk....',
+    '..dkkkkwwkkkkd..',
+    '.gdkkgkwwkkkkdg.',
+    '.ddkekkwwkkekdg.',
+    '.gdkkkwwwwkkkdd.',
+    '.ddkkggggggkkdg.',
+    '.gd.kggnnggk.dd.',
+    '.dd..gmmmmg..gd.',
+    '..d...mppm...d..',
+    '......wppw......',
+    '....kkwwwwkk....',
+    '...kgkwwwwkgkk..',
+    '..kkkkwwwwkkkkk.',
+    '.kkgkkk..kkkgkk.',
+    '.kkkkkk..kkkkkk.',
+    '.kkkkww..wwkkkk.',
+    '..kk.ww..ww.kk..',
   ], SHP);
+  const SHADY_HEAD_ROWS = 10;   // rows shown above the water while she swims
 
   // Dan — plain guy in grey sweatsuit + navy beanie, at the grill (from above)
   const dan = sprite([
@@ -568,14 +573,18 @@
     }
 
     // Shady on deck / diving board / landing shadow / paddling back
-    if (shady && (shady.phase === 'deck' || !state.startsWith('p'))) ctx.drawImage(shadyDeck, 68, 6);
+    if (shady && (shady.phase === 'deck' || !state.startsWith('p'))) ctx.drawImage(shadyDeck, 66, 5);
     if (shady && state === 'play') {
-      if (shady.phase === 'board') ctx.drawImage(shadyDeck, 85, Math.round(8 + shady.t / .8 * 30));
+      if (shady.phase === 'board') ctx.drawImage(shadyDeck, 83, Math.round(5 + shady.t / .8 * 26));
       if (shady.phase === 'air') {
         const k = shady.t / CANNON_AIR, r = Math.round(3 + k * 9);
         if (Math.floor(clock * 10) % 2 || k > .7) { ctx.fillStyle = 'rgba(5,15,30,.55)'; ctx.beginPath(); ctx.arc(shady.x, shady.y, r, 0, Math.PI * 2); ctx.fill(); }
       }
-      if (shady.phase === 'swim') ctx.drawImage(shadyDeck, Math.round(shady.x - 6 + (68 - shady.x) * shady.t / 2.4), Math.round(shady.y - 7 + (6 - shady.y) * shady.t / 2.4));
+      if (shady.phase === 'swim') {   // just her head above water, paddling back to the deck
+        const k = shady.t / 2.4, sx = Math.round(shady.x - 8 + (66 - shady.x) * k), sy = Math.round(shady.y - 5 + (PY0 + 2 - shady.y) * k);
+        ctx.drawImage(shadyDeck, 0, 0, 16, SHADY_HEAD_ROWS, sx, sy, 16, SHADY_HEAD_ROWS);
+        ctx.fillStyle = '#2d8fc4'; ctx.fillRect(sx + 1, sy + SHADY_HEAD_ROWS, 14, 1); ctx.fillRect(sx + 3, sy + SHADY_HEAD_ROWS + 2, 10, 1);
+      }
     }
 
     // Noodles (paddle animation)
