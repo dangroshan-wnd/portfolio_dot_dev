@@ -52,7 +52,9 @@ main svg { position: absolute; inset: 0; width: 100%; height: 100%; display: blo
 .page-work h1       { color: #f4efd6; text-shadow: 0 0 22px rgba(244,239,214,.35); }
 .page-projects main { background: linear-gradient(#8fd0ec 0%, #c6e8f2 55%, #e7f5e2 100%); }
 .page-projects h1   { color: #2d4b3c; }
-.page-games main    { background: linear-gradient(#f0a1a0 0%, #f7c3b1 45%, #fde3d0 100%); }
+.page-movies main   { background: linear-gradient(#1c1533 0%, #3d2a5e 45%, #8a4f7d 75%, #c8737a 100%); }
+.page-movies h1     { color: #f6e7c8; text-shadow: 0 0 22px rgba(255,211,107,.3); }
+.page-games main   { background: linear-gradient(#f0a1a0 0%, #f7c3b1 45%, #fde3d0 100%); }
 .page-games h1      { color: #7a3343; }
 
 /* ---------- shared animations ---------- */
