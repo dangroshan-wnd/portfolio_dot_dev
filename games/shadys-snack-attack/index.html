@@ -84,7 +84,7 @@
 
   // ------------------------------------------------------------------ setup
   const W = 320, H = 180, FLOOR = 152;
-  const ROUND = 30;                       // seconds
+  const TREATS_PER_ROUND = 25;            // a round is exactly 25 throws, so 25 is a perfect score
   const GRAV_TREAT = 260, GRAV_DOG = 520;
   const RUN = 100, JUMP_V = -178;
   // CHOMP: jaws open wide (catch window), then snap shut, then a short cooldown
@@ -404,14 +404,15 @@
 
   // ------------------------------------------------------------------ game state
   let state = 'title', paused = false, overAt = 0, clock = 0;
-  let score = 0, best = Number(store.get('ssa-best', '0')) || 0, newBest = false;
-  let timeLeft = ROUND, nextThrow = 1, throwAnim = 0, thrownThisAnim = false;
+  const BEST_KEY = 'ssa-best-25';         // new key: old 30-second bests aren't comparable
+  let score = 0, best = Number(store.get(BEST_KEY, '0')) || 0, newBest = false;
+  let thrown = 0, doneAt = 0, nextThrow = 1, throwAnim = 0, thrownThisAnim = false;
   const dog = { x: 150, y: FLOOR - SH_H, vy: 0, face: 1, ground: true, chomp: 0, cooldown: 0, caught: 0, runT: 0 };
   let treats = [], pops = [], crumbs = [];
   const input = { left: false, right: false };
 
   function reset() {
-    score = 0; newBest = false; timeLeft = ROUND; nextThrow = .8; throwAnim = 0;
+    score = 0; newBest = false; thrown = 0; doneAt = 0; nextThrow = .8; throwAnim = 0;
     treats = []; pops = []; crumbs = [];
     Object.assign(dog, { x: 150, y: FLOOR - SH_H, vy: 0, face: -1, ground: true, chomp: 0, cooldown: 0, caught: 0, runT: 0 });
   }
@@ -422,6 +423,7 @@
     const [x0, y0] = HAND_THROW;
     const vy = rnd(-215, -115), tx = rnd(76, 304);
     const t = (-vy + Math.sqrt(vy * vy + 2 * GRAV_TREAT * (FLOOR - 3 - y0))) / GRAV_TREAT;
+    thrown++;
     treats.push({ x: x0, y: y0, vx: (tx - x0) / t * TREAT_SPEED, vy: vy * TREAT_SPEED, spin: 0, bounced: false });
   }
 
@@ -437,16 +439,9 @@
     clock += dt;
     if (state !== 'play' || paused) return;
 
-    timeLeft -= dt;
-    if (timeLeft <= 0) {
-      timeLeft = 0; state = 'over'; overAt = clock;
-      if (score > best) { best = score; newBest = true; store.set('ssa-best', String(best)); }
-      musicStop(); sfx.end(); return;
-    }
-
-    // Dan's throwing rhythm: steady, random, one treat every ~1-1.5s
+    // Dan's throwing rhythm: steady, random, one treat every ~1-1.5s, 25 in total
     nextThrow -= dt;
-    if (nextThrow <= 0) { throwAnim = .3; thrownThisAnim = false; nextThrow = rnd(.95, 1.5); }
+    if (nextThrow <= 0 && thrown < TREATS_PER_ROUND && throwAnim <= 0) { throwAnim = .3; thrownThisAnim = false; nextThrow = rnd(.95, 1.5); }
     if (throwAnim > 0) {
       throwAnim -= dt;
       if (!thrownThisAnim && throwAnim < .15) { launch(); thrownThisAnim = true; }
@@ -485,6 +480,16 @@
     pops = pops.filter(p => p.life > 0);
     for (const c of crumbs) { c.life -= dt; c.vy += 300 * dt; c.x += c.vx * dt; c.y = Math.min(FLOOR - 1, c.y + c.vy * dt); }
     crumbs = crumbs.filter(c => c.life > 0);
+
+    // round ends a beat after the last treat is caught or lands
+    if (thrown >= TREATS_PER_ROUND && treats.length === 0 && throwAnim <= 0) {
+      if (!doneAt) doneAt = clock;
+      if (clock - doneAt > .6) {
+        state = 'over'; overAt = clock;
+        if (score > best) { best = score; newBest = true; store.set(BEST_KEY, String(best)); }
+        musicStop(); sfx.end();
+      }
+    }
   }
 
   function draw() {
@@ -519,7 +524,8 @@
     // HUD
     if (state !== 'title') {
       text(`TREATS ${score}`, 6, 6);
-      text(`0:${String(Math.ceil(timeLeft)).padStart(2, '0')}`, W - 6, 6, { align: 'right', color: timeLeft <= 5 ? '#f2789c' : '#e8edf7' });
+      const left = TREATS_PER_ROUND - thrown;
+      text(`LEFT ${left}`, W - 6, 6, { align: 'right', color: left <= 5 ? '#f2789c' : '#e8edf7' });
     }
 
     if (state === 'title') {
@@ -535,8 +541,8 @@
       blinkText(isTouch ? 'TAP TO START' : 'PRESS ANY KEY', 120);
     } else if (state === 'over') {
       panel();
-      text("TIME'S UP!", W / 2, 48, { size: 16, align: 'center', color: '#f2789c' });
-      text(`TREATS  ${score}`, W / 2, 76, { align: 'center' });
+      text(score === TREATS_PER_ROUND ? 'PERFECT!' : "THAT'S ALL!", W / 2, 48, { size: 16, align: 'center', color: score === TREATS_PER_ROUND ? '#ffd36b' : '#f2789c' });
+      text(`TREATS  ${score}/${TREATS_PER_ROUND}`, W / 2, 76, { align: 'center' });
       text(newBest ? `NEW BEST!  ${best}` : `BEST  ${best}`, W / 2, 90, { align: 'center', color: newBest ? '#ffd36b' : '#97a6c4' });
       if (clock - overAt > .8) blinkText(isTouch ? 'TAP TO PLAY AGAIN' : 'ENTER TO PLAY AGAIN', 116);
     } else if (paused) {
@@ -599,6 +605,7 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && state === 'play') { paused = true; input.left = input.right = false; musicStop(); }
   });
+
 
 
 
