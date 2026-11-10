@@ -58,6 +58,7 @@
   const SWIM = 72, SWIM_SLOW = 30, DRAG_MAX = 240;          // px/s
   const HIT_R = 1.6;                                       // Noodles' tiny hitbox (on her head)
   const LEVEL_EVERY = 20, CANNONBALL_EVERY = 40, SWAN_EVERY = 90;
+  const CANNON_AIR = 1.4;                                  // seconds the landing shadow shows before the splash
   const FONT = '"Press Start 2P", monospace';
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -310,7 +311,7 @@
     boing:  () => throttle('boing', 90) && tone(200, .14, { type: 'triangle', to: 480, vol: .07 }),
     squirt: () => noise(.35, { vol: .07, filter: 'bandpass', freq: 2600, q: 1.2 }),
     pop:    () => { noise(.05, { vol: .18, freq: 2200 }); tone(700, .09, { to: 180, vol: .06 }); },
-    whistle:() => tone(1300, 1.0, { type: 'triangle', to: 380, vol: .03 }),
+    whistle:() => tone(1300, 1.3, { type: 'triangle', to: 380, vol: .03 }),
     splash: () => { noise(.7, { vol: .45, filter: 'lowpass', freq: 1300 }); tone(120, .45, { type: 'sine', to: 40, vol: .3 }); noise(.35, { vol: .15, filter: 'bandpass', freq: 3200, delay: .12 }); },
     honk:   () => { tone(330, .16, { type: 'sawtooth', to: 290, vol: .06 }); tone(330, .2, { type: 'sawtooth', to: 280, vol: .06, delay: .22 }); },
     level:  () => { tone(784, .07, { vol: .04 }); tone(988, .07, { vol: .04, delay: .08 }); tone(1319, .12, { vol: .04, delay: .16 }); },
@@ -401,11 +402,13 @@
     const a = Math.PI / 2 + rnd(-1, 1), sp = rnd(45, 62) * speedK();
     bullets.push({ kind: 'ball', x: rnd(PX0 + 10, PX1 - 10), y: PY0 + 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 4.2, bounces: 3 + Math.floor(level / 3) });
   }
+  // A guest aims (dotted line, ~0.7s), then sweeps a PULSED stream: 0.28s on / 0.22s off,
+  // leaving ~20px gaps to slip through. Only one squirt gun at a time.
   function startSquirt() {
+    if (bullets.some(b => b.kind === 'squirter')) return;
     const g = pick(GUEST_SPOTS), h = head();
     const aim = Math.atan2(h.y - g.y, h.x - g.x), dir = Math.random() < .5 ? 1 : -1;
-    bullets.push({ kind: 'squirter', x: g.x, y: g.y, a: aim - dir * .55, da: dir * 1.1 / 1.6, life: 1.6, every: .065, next: 0 });
-    sfx.squirt();
+    bullets.push({ kind: 'squirter', x: g.x, y: g.y, a: aim - dir * .45, da: dir * .9 / 1.8, warn: .7, life: 1.8, every: .06, next: 0, cycle: 0 });
   }
   function spawnFlamingo() {
     bullets.push({ kind: 'flamingo', x: rnd(PX0 + 12, PX1 - 12), y: PY0 - 4, vx: rnd(-6, 6), vy: rnd(14, 20), r: 5, fuse: rnd(2.4, 3.6) });
@@ -459,11 +462,12 @@
     // ---- Shady's cannonball: walk the board, leap, shadow grows, KERSPLOOSH ring with a gap
     shady.t += dt;
     if (shady.phase === 'board' && shady.t > .8) {
-      const h = head();
-      shady = { phase: 'air', t: 0, x: clamp(h.x + rnd(-28, 28), PX0 + 16, PX1 - 16), y: clamp(h.y + rnd(-28, 28), PY0 + 16, PY1 - 16) };
+      const h = head(), a = rnd(0, Math.PI * 2), d = rnd(40, 65);
+      shady = { phase: 'air', t: 0, x: clamp(h.x + Math.cos(a) * d, PX0 + 16, PX1 - 16), y: clamp(h.y + Math.sin(a) * d, PY0 + 16, PY1 - 16) };
       sfx.whistle();
-    } else if (shady.phase === 'air' && shady.t > 1.1) {
-      rings.push({ x: shady.x, y: shady.y, r: 2, gap: rnd(0, Math.PI * 2), gapHalf: .5 });
+    } else if (shady.phase === 'air' && shady.t > CANNON_AIR) {
+      const h = head(), toPup = Math.atan2(h.y - shady.y, h.x - shady.x);
+      rings.push({ x: shady.x, y: shady.y, r: 2, gap: toPup + rnd(-.6, .6), gapHalf: .75 });
       for (let i = 0; i < 16; i++) { const a = rnd(0, Math.PI * 2), s = rnd(20, 60); splashes.push({ x: shady.x, y: shady.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(.3, .6) }); }
       sfx.splash();
       shady = { phase: 'swim', t: 0, x: shady.x, y: shady.y };
@@ -496,8 +500,9 @@
     const h = head();
     for (const b of bullets) {
       if (b.kind === 'squirter') {
-        b.life -= dt; b.a += b.da * dt; b.next -= dt;
-        while (b.next <= 0) { b.next += b.every; bullets.push({ kind: 'drop', x: b.x, y: b.y, vx: Math.cos(b.a) * 95 * speedK(), vy: Math.sin(b.a) * 95 * speedK(), r: 1.2 }); }
+        if (b.warn > 0) { b.warn -= dt; if (b.warn <= 0) sfx.squirt(); continue; }
+        b.life -= dt; b.a += b.da * dt; b.next -= dt; b.cycle = (b.cycle + dt) % .5;
+        while (b.next <= 0) { b.next += b.every; if (b.cycle < .28) bullets.push({ kind: 'drop', x: b.x, y: b.y, vx: Math.cos(b.a) * 95 * speedK(), vy: Math.sin(b.a) * 95 * speedK(), r: 1.2 }); }
         if (b.life <= 0) b.dead = true;
         continue;
       }
@@ -523,7 +528,7 @@
     if (swan && Math.hypot(swan.x + 15 - h.x, swan.y + 8 - h.y) < 11 + HIT_R) return gameOver();
 
     for (const r of rings) {
-      r.r += 78 * dt;
+      r.r += 62 * dt;
       const d = Math.hypot(h.x - r.x, h.y - r.y);
       if (Math.abs(d - r.r) < 2 + HIT_R && Math.abs(angDiff(Math.atan2(h.y - r.y, h.x - r.x), r.gap)) > r.gapHalf) return gameOver();
       if (r.r > 280) r.dead = true;
@@ -567,7 +572,7 @@
     if (shady && state === 'play') {
       if (shady.phase === 'board') ctx.drawImage(shadyDeck, 85, Math.round(8 + shady.t / .8 * 30));
       if (shady.phase === 'air') {
-        const k = shady.t / 1.1, r = Math.round(3 + k * 9);
+        const k = shady.t / CANNON_AIR, r = Math.round(3 + k * 9);
         if (Math.floor(clock * 10) % 2 || k > .7) { ctx.fillStyle = 'rgba(5,15,30,.55)'; ctx.beginPath(); ctx.arc(shady.x, shady.y, r, 0, Math.PI * 2); ctx.fill(); }
       }
       if (shady.phase === 'swim') ctx.drawImage(shadyDeck, Math.round(shady.x - 6 + (68 - shady.x) * shady.t / 2.4), Math.round(shady.y - 7 + (6 - shady.y) * shady.t / 2.4));
@@ -593,6 +598,9 @@
       } else if (b.kind === 'ball') ctx.drawImage(BALL, Math.round(b.x - 4.5), Math.round(b.y - 4.5));
       else if (b.kind === 'flamingo') ctx.drawImage(FLAMINGO, Math.round(b.x - 6), Math.round(b.y - 6));
       else if (b.kind === 'duck') ctx.drawImage(DUCK, Math.round(b.x - 3), Math.round(b.y - 2));
+      else if (b.kind === 'squirter' && b.warn > 0) {
+        if (Math.floor(b.warn * 10) % 2 === 0) { ctx.fillStyle = '#d6f3ff'; for (let d = 8; d < 70; d += 6) ctx.fillRect(Math.round(b.x + Math.cos(b.a) * d), Math.round(b.y + Math.sin(b.a) * d), 1, 1); }
+      }
       else if (b.kind === 'drop') { ctx.fillStyle = '#d6f3ff'; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 2, 2); }
       else if (b.kind === 'confetti') { ctx.fillStyle = b.color; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 2, 2); }
     }
@@ -679,6 +687,7 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && state === 'play') { paused = true; keys.clear(); drag = null; musicStop(); }
   });
+
 
 
   // ================================================================== sizing + loop
