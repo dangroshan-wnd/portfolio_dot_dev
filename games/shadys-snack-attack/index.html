@@ -82,7 +82,9 @@
   const ROUND = 30;                       // seconds
   const GRAV_TREAT = 260, GRAV_DOG = 520;
   const RUN = 100, JUMP_V = -178;
-  const CHOMP_SNAP = 0.15, CHOMP_COOLDOWN = 0.30;
+  // CHOMP: jaws open wide (catch window), then snap shut, then a short cooldown
+  const JAWS_OPEN = 0.16, JAWS_SNAP = 0.08, CHOMP_COOLDOWN = 0.25;
+  const TREAT_SPEED = 1.2;                // treats fly 20% faster along the same arcs
   const FONT = '"Press Start 2P", monospace';
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
@@ -133,6 +135,16 @@
   SH_TOP_CHOMP[8]  = '....kkkgkkkkwkkkkkkkdkkkkgg...';
   SH_TOP_CHOMP[9]  = '...kkggkkkkkkkkgkkkkkwkk......';
   SH_TOP_CHOMP[10] = '...kkkkkkwkkkgggkkkkwwww......';
+  // jaws wide open: muzzle tips up, lower jaw drops, teeth showing
+  const SH_TOP_WIDE = SH_TOP.slice();
+  SH_TOP_WIDE[4]  = '..kk...............dkkwkekkkgn';
+  SH_TOP_WIDE[5]  = '...kk..............ddkwkkggggg';
+  SH_TOP_WIDE[6]  = '....kk.............ddkkkkwmwmw';
+  SH_TOP_WIDE[7]  = '.....kkkkkkkkkkkkkkddkkkkmmmmm';
+  SH_TOP_WIDE[8]  = '....kkkgkkkkwkkkkkkkdkkkmmmmm.';
+  SH_TOP_WIDE[9]  = '...kkggkkkkkkkkgkkkkkwkkmmppm.';
+  SH_TOP_WIDE[10] = '...kkkkkkwkkkgggkkkkwwwwwmwmw.';
+  SH_TOP_WIDE[11] = '...kkkkkkkkkkkkkkkkwwwwwgggg..';
   const LEGS = {
     stand: ['....dkk.dkk.......kkd.kkd.....', '....dkk.dkk.......kkd.kkd.....', '....dkk.dkk.......kkd.kkd.....', '....dkk.dkk.......kkd.kkd.....', '....www.www.......www.www.....'],
     runA:  ['...dkk...dkk.....kkd...kkd....', '..dkk.....dkk...kkd.....kkd...', '..dkk.....dkk...kkd.....kkd...', '.dkk.......dkk.kkd.......kkd..', '.www.......www.www.......www..'],
@@ -141,7 +153,7 @@
   };
   const shady = {};
   for (const [name, legs] of Object.entries(LEGS)) {
-    for (const [mouth, top] of [['open', SH_TOP], ['chomp', SH_TOP_CHOMP]]) {
+    for (const [mouth, top] of [['open', SH_TOP], ['chomp', SH_TOP_CHOMP], ['wide', SH_TOP_WIDE]]) {
       const r = sprite(top.concat(legs), SH);
       shady[`${name}-${mouth}-R`] = r; shady[`${name}-${mouth}-L`] = flip(r);
     }
@@ -275,61 +287,141 @@
     ctx.fillStyle = color; ctx.fillText(str, x, y);
   }
 
-  // ------------------------------------------------------------------ sound (chiptune blips)
-  let audio = null, muted = store.get('ssa-muted', '0') === '1';
+  // ------------------------------------------------------------------ sound: mixer
+  // Browsers only allow audio after the first key/tap. One "Sound" button mutes music + effects.
+  let audio = null, master = null, musicBus = null, sfxBus = null, noiseBuf = null;
+  let muted = store.get('ssa-muted', '0') === '1';
   const muteBtn = document.getElementById('mute');
-  function syncMute() { muteBtn.textContent = muted ? 'Sound off' : 'Sound on'; muteBtn.setAttribute('aria-pressed', String(!muted)); }
+  function syncMute() {
+    muteBtn.textContent = muted ? 'Sound off' : 'Sound on'; muteBtn.setAttribute('aria-pressed', String(!muted));
+    if (master) master.gain.setValueAtTime(muted ? 0 : 1, audio.currentTime);
+  }
   function unlockAudio() {
-    if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch { audio = null; } }
+    if (!audio) {
+      try {
+        audio = new (window.AudioContext || window.webkitAudioContext)();
+        master = audio.createGain(); master.connect(audio.destination);
+        musicBus = audio.createGain(); musicBus.gain.value = .5; musicBus.connect(master);
+        sfxBus = audio.createGain(); sfxBus.connect(master);
+        noiseBuf = audio.createBuffer(1, audio.sampleRate / 2, audio.sampleRate);
+        const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        syncMute();
+      } catch { audio = null; }
+    }
     if (audio && audio.state === 'suspended') audio.resume();
   }
-  function blip(freq, dur, { type = 'square', to = null, vol = .06, delay = 0 } = {}) {
-    if (muted || !audio) return;
-    const t0 = audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
+  function tone(freq, dur, { type = 'square', to = null, vol = .06, delay = 0, at = 0, bus = sfxBus } = {}) {
+    if (!audio) return;
+    const t0 = at || audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, t0);
     if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
     g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
-    o.connect(g).connect(audio.destination); o.start(t0); o.stop(t0 + dur + .02);
+    o.connect(g).connect(bus); o.start(t0); o.stop(t0 + dur + .02);
   }
+  function noise(dur, { vol = .1, delay = 0, at = 0, bus = sfxBus, filter = 'highpass', freq = 1000, q = .7 } = {}) {
+    if (!audio) return;
+    const t0 = at || audio.currentTime + delay, s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+    s.buffer = noiseBuf; f.type = filter; f.frequency.value = freq; f.Q.value = q;
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+    s.connect(f).connect(g).connect(bus); s.start(t0, Math.random() * .3); s.stop(t0 + dur + .02);
+  }
+
+  // ------------------------------------------------------------------ sound: effects
   const sfx = {
-    start: () => { blip(440, .08); blip(660, .08, { delay: .09 }); blip(880, .12, { delay: .18 }); },
-    jump:  () => blip(280, .12, { to: 620 }),
-    chomp: () => blip(140, .06, { type: 'triangle', vol: .12 }),
-    catch: () => { blip(660, .06); blip(990, .1, { delay: .06 }); },
-    bonk:  () => blip(180, .07, { type: 'triangle', to: 120, vol: .08 }),
-    end:   () => { blip(660, .12); blip(520, .12, { delay: .13 }); blip(330, .25, { delay: .26 }); },
+    start: () => { tone(440, .08); tone(660, .08, { delay: .09 }); tone(880, .12, { delay: .18 }); },
+    jump:  () => tone(280, .12, { to: 620, vol: .05 }),
+    open:  () => tone(420, .06, { type: 'triangle', to: 640, vol: .04 }),          // jaws open: little "hah"
+    // CHOMP + caught: big crunchy bite, double crunch, sparkle
+    crunch: () => {
+      noise(.12, { vol: .35, filter: 'lowpass', freq: 2800 });
+      tone(240, .13, { to: 60, vol: .12 });
+      noise(.09, { vol: .22, filter: 'bandpass', freq: 1800, q: 1.5, delay: .07 });
+      tone(988, .07, { vol: .05, delay: .1 }); tone(1319, .14, { vol: .05, delay: .16 });
+    },
+    // CHOMP + missed: hollow teeth clack and a sad little drop
+    whiff: () => {
+      noise(.03, { vol: .16, filter: 'bandpass', freq: 3200, q: 4 });
+      tone(900, .025, { type: 'triangle', vol: .08 });
+      tone(200, .12, { to: 110, vol: .06, delay: .03 });
+    },
+    // treat bounces off Shady's head: cartoon BONK
+    bonk: () => {
+      tone(1400, .02, { vol: .07 });
+      tone(620, .18, { type: 'triangle', to: 150, vol: .2 });
+      tone(310, .14, { type: 'square', to: 90, vol: .05, delay: .02 });
+    },
+    end:   () => { tone(660, .12); tone(520, .12, { delay: .13 }); tone(440, .12, { delay: .26 }); tone(330, .35, { delay: .39 }); },
   };
   muteBtn.addEventListener('click', () => { muted = !muted; store.set('ssa-muted', muted ? '1' : '0'); unlockAudio(); syncMute(); });
-  // No sound can play until the first key/tap (browsers require a gesture); the button mutes it.
   syncMute();
+
+  // ------------------------------------------------------------------ sound: music
+  // Original bouncy chiptune loop, 16 bars at 140 bpm (~27s): square lead, triangle bass, noise drums.
+  const STEP = 60 / 140 / 2;              // one eighth note
+  const ROOT = { C: 36, Am: 45, F: 41, G: 43, Em: 40 };
+  const BARS = ['C', 'Am', 'F', 'G', 'C', 'Am', 'F|G', 'C', 'F', 'G', 'Em', 'Am', 'F', 'G', 'C', 'C'];
+  const MEL = [
+    72, 0, 76, 79, 76, 0, 72, 74,   76, 0, 72, 69, 72, 0, 76, 0,
+    77, 0, 76, 77, 81, 0, 77, 76,   74, 0, 71, 74, 79, 0, 0, 0,
+    72, 0, 76, 79, 84, 0, 79, 76,   81, 0, 79, 76, 72, 0, 69, 72,
+    77, 76, 74, 72, 74, 0, 71, 74,  72, 0, 79, 0, 72, 0, 0, 0,
+    69, 72, 77, 72, 69, 72, 77, 79, 71, 74, 79, 74, 71, 74, 79, 81,
+    79, 76, 71, 76, 79, 83, 79, 76, 81, 0, 76, 0, 72, 0, 76, 81,
+    77, 81, 84, 81, 77, 0, 76, 77,  79, 0, 74, 0, 71, 74, 77, 79,
+    84, 0, 79, 76, 72, 76, 79, 84,  0, 0, 72, 0, 0, 0, 0, 0,
+  ];
+  const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+  let musicOn = false, mStep = 0, mNext = 0, mTimer = null;
+  function playStep(i, t) {
+    const bar = Math.floor(i / 8), beat = i % 8;
+    const chord = BARS[bar].includes('|') ? BARS[bar].split('|')[beat < 4 ? 0 : 1] : BARS[bar];
+    const opt = { at: t, bus: musicBus };
+    if (MEL[i]) tone(midi(MEL[i]), STEP * .9, { ...opt, vol: .045 });
+    const r = ROOT[chord];
+    tone(midi([r, r + 12, r, r + 12, r, r + 12, r + 7, r + 12][beat]), STEP * .8, { ...opt, type: 'triangle', vol: .13 });
+    if (beat === 0 || beat === 4 || (bar % 2 && beat === 5)) tone(150, .12, { ...opt, type: 'sine', to: 45, vol: .35 });  // kick
+    if (beat === 2 || beat === 6 || (bar === 15 && beat >= 4)) noise(.09, { ...opt, vol: .12, freq: 1800 });                 // snare
+    noise(.025, { ...opt, vol: beat % 2 ? .025 : .045, freq: 7000 });                                                          // hat
+  }
+  function schedule() {
+    if (!musicOn || !audio) return;
+    if (mNext < audio.currentTime) mNext = audio.currentTime + .05;   // tab was throttled: don't burst-play
+    while (mNext < audio.currentTime + .12) { playStep(mStep, mNext); mStep = (mStep + 1) % MEL.length; mNext += STEP; }
+  }
+  function musicStart() {
+    if (!audio || musicOn) return;
+    musicOn = true; mStep = 0; mNext = audio.currentTime + .08; mTimer = setInterval(schedule, 25); schedule();
+  }
+  function musicStop() { musicOn = false; clearInterval(mTimer); }
 
   // ------------------------------------------------------------------ game state
   let state = 'title', paused = false, overAt = 0, clock = 0;
   let score = 0, best = Number(store.get('ssa-best', '0')) || 0, newBest = false;
   let timeLeft = ROUND, nextThrow = 1, throwAnim = 0, thrownThisAnim = false;
-  const dog = { x: 150, y: FLOOR - SH_H, vy: 0, face: 1, ground: true, chomp: 0, cooldown: 0, runT: 0 };
+  const dog = { x: 150, y: FLOOR - SH_H, vy: 0, face: 1, ground: true, chomp: 0, cooldown: 0, caught: 0, runT: 0 };
   let treats = [], pops = [], crumbs = [];
   const input = { left: false, right: false };
 
   function reset() {
     score = 0; newBest = false; timeLeft = ROUND; nextThrow = .8; throwAnim = 0;
     treats = []; pops = []; crumbs = [];
-    Object.assign(dog, { x: 150, y: FLOOR - SH_H, vy: 0, face: -1, ground: true, chomp: 0, cooldown: 0, runT: 0 });
+    Object.assign(dog, { x: 150, y: FLOOR - SH_H, vy: 0, face: -1, ground: true, chomp: 0, cooldown: 0, caught: 0, runT: 0 });
   }
-  function start() { reset(); state = 'play'; paused = false; sfx.start(); }
+  function start() { reset(); state = 'play'; paused = false; sfx.start(); musicStart(); }
 
   function rnd(a, b) { return a + Math.random() * (b - a); }
   function launch() {
     const [x0, y0] = HAND_THROW;
     const vy = rnd(-215, -115), tx = rnd(76, 304);
     const t = (-vy + Math.sqrt(vy * vy + 2 * GRAV_TREAT * (FLOOR - 3 - y0))) / GRAV_TREAT;
-    treats.push({ x: x0, y: y0, vx: (tx - x0) / t, vy, spin: 0, bounced: false });
+    treats.push({ x: x0, y: y0, vx: (tx - x0) / t * TREAT_SPEED, vy: vy * TREAT_SPEED, spin: 0, bounced: false });
   }
 
+  // catch area while the jaws are wide open: ~13x13 px around the open mouth (about 2x the old bite)
   function mouthBox() {
-    const mx = dog.face > 0 ? dog.x + 23 : dog.x;
-    return { x: mx - 2, y: dog.y + 4, w: 9, h: 9 };
+    return { x: dog.face > 0 ? dog.x + 21 : dog.x - 4, y: dog.y + 1, w: 13, h: 13 };
   }
+  const jawsOpen = () => dog.chomp > JAWS_SNAP;
   function bodyBox() { return { x: dog.x + 3, y: dog.y + 1, w: SH_W - 6, h: SH_H - 1 }; }
   const inBox = (p, b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h;
 
@@ -341,7 +433,7 @@
     if (timeLeft <= 0) {
       timeLeft = 0; state = 'over'; overAt = clock;
       if (score > best) { best = score; newBest = true; store.set('ssa-best', String(best)); }
-      sfx.end(); return;
+      musicStop(); sfx.end(); return;
     }
 
     // Dan's throwing rhythm: steady, random, one treat every ~1-1.5s
@@ -358,18 +450,20 @@
     dog.x = Math.max(64, Math.min(W - SH_W - 2, dog.x + dir * RUN * dt));
     dog.vy += GRAV_DOG * dt; dog.y += dog.vy * dt;
     if (dog.y >= FLOOR - SH_H) { dog.y = FLOOR - SH_H; dog.vy = 0; dog.ground = true; }
+    const wasOpen = jawsOpen();
     dog.chomp = Math.max(0, dog.chomp - dt); dog.cooldown = Math.max(0, dog.cooldown - dt);
+    if (wasOpen && !jawsOpen()) { dog.caught ? sfx.crunch() : sfx.whiff(); }   // the SNAP
 
     // treats
     const mouth = mouthBox(), body = bodyBox();
     for (const t of treats) {
-      t.vy += GRAV_TREAT * dt; t.x += t.vx * dt; t.y += t.vy * dt; t.spin += dt;
-      if (dog.chomp > 0 && inBox(t, mouth)) {
-        t.dead = true; score++; sfx.catch();
+      t.vy += GRAV_TREAT * TREAT_SPEED * TREAT_SPEED * dt; t.x += t.vx * dt; t.y += t.vy * dt; t.spin += dt;
+      if (jawsOpen() && inBox(t, mouth)) {
+        t.dead = true; score++; dog.caught++;
         pops.push({ x: t.x, y: t.y - 6, life: .7 });
         continue;
       }
-      if (!t.bounced && t.vy > 0 && inBox(t, body) && !inBox(t, mouth)) {
+      if (!t.bounced && t.vy > 0 && inBox(t, body) && !(jawsOpen() && inBox(t, mouth))) {
         t.bounced = true; t.vy = -Math.abs(t.vy) * .45; t.vx = (t.x < dog.x + SH_W / 2 ? -1 : 1) * rnd(30, 60); sfx.bonk();
       }
       if (t.y >= FLOOR - 2) {
@@ -402,7 +496,7 @@
     let legs = 'stand';
     if (!dog.ground) legs = 'jump';
     else if ((input.left || input.right) && state === 'play') legs = Math.floor(dog.runT * 10) % 2 ? 'runA' : 'runB';
-    const mouthState = dog.chomp > 0 ? 'chomp' : 'open';
+    const mouthState = jawsOpen() ? 'wide' : dog.chomp > 0 ? 'chomp' : 'open';
     ctx.drawImage(shady[`${legs}-${mouthState}-${dog.face > 0 ? 'R' : 'L'}`], Math.round(dog.x), Math.round(dog.y));
 
     // treats, crumbs, +1s
@@ -450,14 +544,14 @@
   function jump() { if (state === 'play' && !paused && dog.ground) { dog.vy = JUMP_V; dog.ground = false; sfx.jump(); } }
   function chomp() {
     if (state !== 'play' || paused || dog.cooldown > 0) return;
-    dog.chomp = CHOMP_SNAP; dog.cooldown = CHOMP_SNAP + CHOMP_COOLDOWN; sfx.chomp();
+    dog.chomp = JAWS_OPEN + JAWS_SNAP; dog.cooldown = JAWS_OPEN + JAWS_SNAP + CHOMP_COOLDOWN; dog.caught = 0; sfx.open();
   }
   // returns true when the press was used to start/restart/resume
   function primary() {
     unlockAudio();
     if (state === 'title') { start(); return true; }
     if (state === 'over') { if (clock - overAt > .8) start(); return true; }
-    if (paused) { paused = false; return true; }
+    if (paused) { paused = false; musicStart(); return true; }
     return false;
   }
 
@@ -495,8 +589,9 @@
   cv.addEventListener('pointerdown', e => { e.preventDefault(); primary(); });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden && state === 'play') { paused = true; input.left = input.right = false; }
+    if (document.hidden && state === 'play') { paused = true; input.left = input.right = false; musicStop(); }
   });
+
 
 
   // ------------------------------------------------------------------ sizing
