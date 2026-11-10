@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title>Pool Noodle Panic · Dan Groshan</title>
+  <meta name="description" content="Pool Noodle Panic: help Noodles survive the wildest pool party.">
+  <link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <style>
+    body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+    .bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+      font: 600 .95rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    .bar a { color: var(--muted); text-decoration: none; }
+    .bar a:hover, .bar a:focus-visible { color: var(--text); }
+    .bar h1 { margin: 0; font: 10px/1.4 "Press Start 2P", monospace; color: var(--games); text-align: center; }
+    .bar button {
+      font: inherit; color: var(--muted); background: var(--raised); border: 1px solid var(--line);
+      border-radius: 10px; padding: 6px 10px; cursor: pointer; min-width: 44px; min-height: 36px;
+    }
+    .bar button:focus-visible { outline: 2px solid var(--games); outline-offset: 2px; }
+
+    /* the whole play area takes drags on touch screens, not just the canvas */
+    .game { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; }
+    canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; border-radius: 6px; box-shadow: 0 10px 40px rgba(0,0,0,.45); }
+
+    .embedded .bar { position: absolute; top: 8px; right: 8px; z-index: 3; padding: 0; border: 0; background: none; }
+    .embedded .bar a, .embedded .bar h1 { display: none; }
+    .embedded .bar button { font-size: .8rem; min-height: 30px; padding: 4px 8px; opacity: .9; }
+    .embedded .game { padding-top: 44px; }   /* keep the Sound button off the HUD */
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <a href="../">← Games</a>
+    <h1>Pool Noodle Panic</h1>
+    <button id="mute" type="button" aria-pressed="true">Sound on</button>
+  </header>
+
+  <div class="game" id="game">
+    <canvas id="screen" width="180" height="320" aria-label="Pool Noodle Panic game screen"></canvas>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ================================================================== setup
+  const W = 180, H = 320;
+  const PX0 = 14, PX1 = 166, PY0 = 42, PY1 = 308;          // pool water bounds
+  const SWIM = 72, SWIM_SLOW = 30, DRAG_MAX = 240;          // px/s
+  const HIT_R = 1.6;                                       // Noodles' tiny hitbox (on her head)
+  const LEVEL_EVERY = 20, CANNONBALL_EVERY = 40, SWAN_EVERY = 90;
+  const FONT = '"Press Start 2P", monospace';
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+  let embedded = false;
+  try { embedded = window.self !== window.top; } catch { embedded = true; }
+  if (embedded) document.body.classList.add('embedded');
+
+  const cv = document.getElementById('screen');
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  // ================================================================== sprites
+  function sprite(rows, pal) {
+    const h = rows.length, w = Math.max(...rows.map(r => r.length));
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) { const ch = r[i]; if (ch !== '.') { x.fillStyle = pal[ch]; x.fillRect(i, j, 1, 1); } } });
+    return c;
+  }
+  function flipX(c) {
+    const f = document.createElement('canvas'); f.width = c.width; f.height = c.height;
+    const x = f.getContext('2d'); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(c, 0, 0); return f;
+  }
+
+  // Noodles — Mini Goldendoodle, swimming, seen from above (head up). See docs/characters.md
+  const NO = { o: '#e3a868', D: '#c98a4c', L: '#f0c48e', n: '#2e2420', e: '#1d1512', p: '#d99a58', u: '#b07a42' };
+  const NOODLES_TOP = [
+    '....ooooo....',
+    '...ooooooo...',
+    '..DoooooooD..',
+    '..DoeoooeoD..',
+    '..DooLLLooD..',
+    '...ooLnLoo...',
+    '....ooooo....',
+  ];
+  const noodlesA = sprite(NOODLES_TOP.concat([
+    '.pp.ooooo.pp.',
+    '..p.ouuuo.p..',
+    '....ouuuo....',
+    '....ouuuo....',
+    '.....uuu.....',
+    '......u......',
+  ]), NO);
+  const noodlesB = sprite(NOODLES_TOP.concat([
+    '....ooooo....',
+    '..p.ouuuo.p..',
+    '.pp.ouuuo.pp.',
+    '....ouuuo....',
+    '.....uuu.....',
+    '.....u.......',
+  ]), NO);
+  const NO_W = 13, NO_H = 13, NO_HEAD = { x: 6.5, y: 3.5 };   // hitbox centre within the sprite
+
+  // Shady — Mini Aussiedoodle, sitting on the deck, from above (bigger than Noodles)
+  const SHP = { k: '#3a3f4a', d: '#2a2e37', g: '#8d96a8', w: '#e8e6e1', n: '#15171c', p: '#f27d9c', e: '#0b0c10' };
+  const shadyDeck = sprite([
+    '..dkkkkkkd..',
+    '.ddkkwwkkdd.',
+    '.ddekwwkedd.',
+    '.dd.kggk.dd.',
+    '.....gn.....',
+    '.....pp.....',
+    '...kkkkkk...',
+    '..kkgkkwkk..',
+    '..kwkkkkgk..',
+    '..kkkgkkkk..',
+    '..wwkkkkww..',
+    '...kkkkkk...',
+    '.....kk.....',
+    '......kk....',
+  ], SHP);
+
+  // Dan — plain guy in grey sweatsuit + navy beanie, at the grill (from above)
+  const dan = sprite([
+    '..nnnn..',
+    '.nnccnn.',
+    '.nnnnnn.',
+    '..ssss..',
+    'gggggggg',
+    'gggggggg',
+    'Gg.gg.gG',
+  ], { n: '#2b3a67', c: '#3d5090', s: '#d9a982', g: '#8a8f99', G: '#6d717a' });
+
+  const GUEST_SHIRTS = ['#e85d4a', '#5fc28a', '#f4d35e', '#b084e8'];
+  const guests = GUEST_SHIRTS.map((shirt, i) => sprite([
+    '...hhh....',
+    '..hssss...',
+    '..ssssss..',
+    '...sss....',
+    'tttttttt..',
+    'tttttttt..',
+    'ttttttttt.',
+    '.tt..tt...',
+  ], { h: ['#3a2a20', '#d9b36b', '#1a1a1a', '#8a4a2a'][i], s: '#d9a982', t: shirt }));
+
+  const DUCK = sprite(['.yy...', 'yyyyo.', 'yyyy..', '.yyy..'], { y: '#ffd93d', o: '#ff9f43' });
+  const BALL = sprite([
+    '...rrr...',
+    '..rrwwy..',
+    '.rrrwwyy.',
+    'rrrrwyyyy',
+    'bbbbwyyyy',
+    'bbbbwwggg',
+    '.bbbwwgg.',
+    '..bbwgg..',
+    '...bgg...',
+  ], { r: '#e85d4a', w: '#f4f1ea', y: '#ffd93d', b: '#3d6bd6', g: '#5fc28a' });
+  const FLAMINGO = sprite([
+    '..........pp.',
+    '.........pppo',
+    '....pppppp...',
+    '..pppppppp...',
+    '.ppp....ppp..',
+    'ppp......ppp.',
+    'pp........pp.',
+    'pp........pp.',
+    'ppp......ppp.',
+    '.ppp....ppp..',
+    '..pppppppp...',
+    '....pppp.....',
+  ], { p: '#ff7eb6', o: '#2b2b2b' });
+  const SWAN_R = sprite([
+    '.........................ww...',
+    '........................wwwoo.',
+    '........................www...',
+    '.........................ww...',
+    '........................ww....',
+    '.....wwwwwwwwwwwww.....ww.....',
+    '...wwwwwwwwwwwwwwwwwwwwww.....',
+    '..wwwwwwWWwwwwwwwwwwwwww......',
+    '.wwwwwwWWWWwwwwccccwwwww......',
+    '.wwwwwwwWWwwwwwcSScwwwww......',
+    '.wwwwwwwwwwwwwwwSSwwwwww......',
+    '..wwwwwwwwwwwwwwwwwwwwww......',
+    '...wwwwwwwwwwwwwwwwwwww.......',
+    '.....wwwwwwwwwwwwwwwww........',
+  ], { w: '#f4f1ea', W: '#cfd6e3', o: '#ff9f43', c: '#e85d4a', S: '#d9a982' });
+  const SWAN_L = flipX(SWAN_R);
+
+  // ================================================================== background
+  const bg = document.createElement('canvas'); bg.width = W; bg.height = H;
+  (function paint() {
+    const b = bg.getContext('2d');
+    b.fillStyle = '#2c2a3d'; b.fillRect(0, 0, W, H);                         // deck
+    b.fillStyle = '#353249';
+    for (let y = 2; y < PY0 - 2; y += 6) b.fillRect(0, y, W, 1);                 // top deck planks
+    for (let y = PY1 + 4; y < H; y += 6) b.fillRect(0, y, W, 1);
+    for (let x = 3; x < PX0 - 2; x += 5) { b.fillRect(x, PY0, 1, PY1 - PY0); b.fillRect(W - x, PY0, 1, PY1 - PY0); }
+    b.fillStyle = '#8fa3b8'; b.fillRect(PX0 - 2, PY0 - 2, PX1 - PX0 + 4, PY1 - PY0 + 4);   // coping
+    b.fillStyle = '#12456b'; b.fillRect(PX0, PY0, PX1 - PX0, PY1 - PY0);                   // water
+    b.fillStyle = '#15507a';
+    for (let x = PX0 + 9; x < PX1; x += 10) b.fillRect(x, PY0, 1, PY1 - PY0);
+    for (let y = PY0 + 9; y < PY1; y += 10) b.fillRect(PX0, y, PX1 - PX0, 1);
+    // underwater lights: stepped glow
+    for (const [cx, cy] of [[PX0 + 1, 130], [PX1 - 1, 220], [90, PY1 - 1]]) {
+      for (const [r, c] of [[30, '#175a85'], [20, '#1d6a96'], [11, '#2785b5'], [4, '#9fd8f2']]) {
+        b.fillStyle = c;
+        for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) {
+          if (x < PX0 || x >= PX1 || y < PY0 || y >= PY1) continue;
+          const d = (x - cx) ** 2 + (y - cy) ** 2;
+          if (d <= r * r && (r > 12 ? (x + y) % 2 === 0 || d < (r - 4) ** 2 : true)) b.fillRect(x, y, 1, 1);
+        }
+      }
+    }
+    // diving board
+    b.fillStyle = '#6b6478'; b.fillRect(86, 10, 10, 6);
+    b.fillStyle = '#d9d4c7'; b.fillRect(87, 14, 8, 38); b.fillStyle = '#b8b2a4'; b.fillRect(87, 14, 1, 38);
+    // grill
+    b.fillStyle = '#15171c'; b.fillRect(150, 18, 12, 12); b.fillRect(149, 19, 14, 10);
+    b.fillStyle = '#3a3f4a'; for (let x = 151; x < 162; x += 3) b.fillRect(x, 19, 1, 10);
+    // deck guests
+    b.drawImage(guests[0], 2, 96); b.drawImage(guests[1], 2, 200);
+    b.drawImage(flipX(guests[2]), W - 12, 148); b.drawImage(flipX(guests[3]), W - 12, 252);
+    b.drawImage(dan, 140, 12);
+  })();
+  const GUEST_SPOTS = [{ x: 8, y: 100, a: 0 }, { x: 8, y: 204, a: 0 }, { x: W - 8, y: 152, a: Math.PI }, { x: W - 8, y: 256, a: Math.PI }];
+
+  // ================================================================== pixel drawing helpers
+  function thickLine(x0, y0, x1, y1, color, w = 3) {
+    const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0)), h = Math.floor(w / 2);
+    ctx.fillStyle = color;
+    for (let i = 0; i <= n; i++) ctx.fillRect(Math.round(x0 + (x1 - x0) * i / n) - h, Math.round(y0 + (y1 - y0) * i / n) - h, w, w);
+  }
+  function ringPixels(cx, cy, r, color, gapAngle = null, gapHalf = 0) {
+    ctx.fillStyle = color;
+    const steps = Math.max(24, Math.ceil(r * 6.3));
+    for (let i = 0; i < steps; i++) {
+      const a = i / steps * Math.PI * 2;
+      if (gapAngle !== null && Math.abs(angDiff(a, gapAngle)) < gapHalf) continue;
+      const x = Math.round(cx + Math.cos(a) * r), y = Math.round(cy + Math.sin(a) * r);
+      if (x >= PX0 && x < PX1 && y >= PY0 && y < PY1) ctx.fillRect(x, y, 2, 2);
+    }
+  }
+  const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+  function text(str, x, y, { size = 8, color = '#e8edf7', align = 'left', shadow = '#0b0f1c' } = {}) {
+    ctx.font = `${size}px ${FONT}`; ctx.textAlign = align; ctx.textBaseline = 'top';
+    ctx.fillStyle = shadow; ctx.fillText(str, x + 1, y + 1);
+    ctx.fillStyle = color; ctx.fillText(str, x, y);
+  }
+
+  // ================================================================== sound: mixer + effects
+  let audio = null, master = null, musicBus = null, sfxBus = null, noiseBuf = null;
+  let muted = store.get('pnp-muted', '0') === '1';
+  const muteBtn = document.getElementById('mute');
+  function syncMute() {
+    muteBtn.textContent = muted ? 'Sound off' : 'Sound on'; muteBtn.setAttribute('aria-pressed', String(!muted));
+    if (master) master.gain.setValueAtTime(muted ? 0 : 1, audio.currentTime);
+  }
+  function unlockAudio() {
+    if (!audio) {
+      try {
+        audio = new (window.AudioContext || window.webkitAudioContext)();
+        master = audio.createGain(); master.connect(audio.destination);
+        musicBus = audio.createGain(); musicBus.gain.value = .45; musicBus.connect(master);
+        sfxBus = audio.createGain(); sfxBus.connect(master);
+        noiseBuf = audio.createBuffer(1, audio.sampleRate, audio.sampleRate);
+        const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+        syncMute();
+      } catch { audio = null; }
+    }
+    if (audio && audio.state === 'suspended') audio.resume();
+  }
+  function tone(freq, dur, { type = 'square', to = null, vol = .05, delay = 0, at = 0, bus = sfxBus } = {}) {
+    if (!audio) return;
+    const t0 = at || audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+    o.connect(g).connect(bus); o.start(t0); o.stop(t0 + dur + .02);
+  }
+  function noise(dur, { vol = .1, delay = 0, at = 0, bus = sfxBus, filter = 'highpass', freq = 1000, q = .7 } = {}) {
+    if (!audio) return;
+    const t0 = at || audio.currentTime + delay, s = audio.createBufferSource(), f = audio.createBiquadFilter(), g = audio.createGain();
+    s.buffer = noiseBuf; f.type = filter; f.frequency.value = freq; f.Q.value = q;
+    g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+    s.connect(f).connect(g).connect(bus); s.start(t0, Math.random() * .4); s.stop(t0 + dur + .02);
+  }
+  const lastSfx = {};
+  const throttle = (name, ms) => { const now = performance.now(); if (now - (lastSfx[name] || 0) < ms) return false; lastSfx[name] = now; return true; };
+  const sfx = {
+    start:  () => { tone(523, .08); tone(659, .08, { delay: .09 }); tone(784, .08, { delay: .18 }); tone(1047, .16, { delay: .27 }); },
+    squeak: () => throttle('squeak', 120) && (tone(950, .05, { to: 1400, vol: .035 }), tone(1400, .06, { to: 900, vol: .035, delay: .05 })),
+    boing:  () => throttle('boing', 90) && tone(200, .14, { type: 'triangle', to: 480, vol: .07 }),
+    squirt: () => noise(.35, { vol: .07, filter: 'bandpass', freq: 2600, q: 1.2 }),
+    pop:    () => { noise(.05, { vol: .18, freq: 2200 }); tone(700, .09, { to: 180, vol: .06 }); },
+    whistle:() => tone(1300, 1.0, { type: 'triangle', to: 380, vol: .03 }),
+    splash: () => { noise(.7, { vol: .45, filter: 'lowpass', freq: 1300 }); tone(120, .45, { type: 'sine', to: 40, vol: .3 }); noise(.35, { vol: .15, filter: 'bandpass', freq: 3200, delay: .12 }); },
+    honk:   () => { tone(330, .16, { type: 'sawtooth', to: 290, vol: .06 }); tone(330, .2, { type: 'sawtooth', to: 280, vol: .06, delay: .22 }); },
+    level:  () => { tone(784, .07, { vol: .04 }); tone(988, .07, { vol: .04, delay: .08 }); tone(1319, .12, { vol: .04, delay: .16 }); },
+    over:   () => { noise(.35, { vol: .3, filter: 'lowpass', freq: 900 }); [392, 330, 262, 196].forEach((f, i) => tone(f, .18, { vol: .06, delay: .15 + i * .16 })); },
+  };
+  muteBtn.addEventListener('click', () => { muted = !muted; store.set('pnp-muted', muted ? '1' : '0'); unlockAudio(); syncMute(); });
+  syncMute();
+
+  // ================================================================== sound: music (original surf-rock chiptune)
+  // 16 bars at 160 bpm (~24s). Tremolo-picked square lead, driving triangle bass, noise drums.
+  const STEP = 60 / 160 / 4;                 // sixteenth note
+  const ROOT = { Em: 40, G: 43, D: 38, C: 36, B: 35, Am: 45 };
+  const BARS = ['Em', 'Em', 'G', 'D', 'Em', 'Em', 'C', 'B', 'Am', 'C', 'G', 'D', 'Am', 'C', 'B', 'B'];
+  const MEL = [   // one entry per eighth note
+    64, 64, 67, 69, 71, 0, 69, 67,   64, 0, 62, 64, 67, 0, 64, 0,
+    67, 67, 71, 74, 71, 0, 67, 71,   69, 0, 66, 69, 74, 0, 0, 0,
+    76, 76, 74, 71, 69, 71, 67, 64,  64, 0, 67, 0, 71, 0, 76, 0,
+    72, 72, 71, 69, 67, 69, 71, 72,  71, 0, 75, 0, 78, 0, 71, 0,
+    69, 72, 76, 72, 69, 72, 76, 79,  72, 76, 79, 76, 72, 76, 79, 84,
+    79, 0, 74, 71, 74, 0, 79, 0,     78, 0, 74, 69, 66, 69, 74, 78,
+    81, 0, 79, 76, 72, 76, 79, 81,   79, 0, 76, 72, 76, 0, 72, 67,
+    66, 71, 75, 78, 75, 71, 66, 71,  71, 0, 0, 0, 0, 0, 0, 0,
+  ];
+  const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+  let musicOn = false, mStep = 0, mNext = 0, mTimer = null;
+  function playStep(i, t) {
+    const bar = Math.floor(i / 16), s = i % 16, opt = { at: t, bus: musicBus };
+    const note = MEL[bar * 8 + Math.floor(s / 2)];
+    if (note) tone(midi(note), STEP * .85, { ...opt, vol: s % 2 ? .028 : .04 });          // surf tremolo picking
+    if (s % 2 === 0) {
+      const r = ROOT[BARS[bar]];
+      tone(midi([r, r, r + 7, r + 12, r, r, r + 7, r + 5][s / 2]), STEP * 1.7, { ...opt, type: 'triangle', vol: .12 });
+    }
+    if (s === 0 || s === 8 || (bar % 2 && s === 10)) tone(150, .12, { ...opt, type: 'sine', to: 45, vol: .32 });
+    if (s === 4 || s === 12 || (bar === 15 && s >= 8 && s % 2 === 0)) noise(.09, { ...opt, vol: .11, freq: 1800 });
+    if (s % 2 === 0) noise(.025, { ...opt, vol: s % 4 ? .022 : .04, freq: 7000 });
+  }
+  function schedule() {
+    if (!musicOn || !audio) return;
+    if (mNext < audio.currentTime) mNext = audio.currentTime + .05;
+    while (mNext < audio.currentTime + .12) { playStep(mStep, mNext); mStep = (mStep + 1) % (BARS.length * 16); mNext += STEP; }
+  }
+  function musicStart() { if (!audio || musicOn) return; musicOn = true; mStep = 0; mNext = audio.currentTime + .08; mTimer = setInterval(schedule, 25); schedule(); }
+  function musicStop() { musicOn = false; clearInterval(mTimer); }
+
+  // ================================================================== game state
+  let state = 'title', paused = false, overAt = 0, clock = 0;
+  let t = 0, best = Number(store.get('pnp-best', '0')) || 0, newBest = false, level = 1;
+  const pup = { x: 84, y: 250, slow: false, swimT: 0 };          // sprite top-left; hitbox = head
+  let bullets = [], warnings = [], rings = [], splashes = [], banner = null;
+  let timers = {}, shady = null, swan = null;
+  const keys = new Set();
+  let drag = null;
+
+  const HAZARD_NAMES = ['POOL NOODLES!', 'BEACH BALLS!', 'SQUIRT GUNS!', 'FLAMINGOS!', 'PARTY HARDER!'];
+  function reset() {
+    t = 0; level = 1; newBest = false;
+    Object.assign(pup, { x: 84, y: 250, slow: false, swimT: 0 });
+    bullets = []; warnings = []; rings = []; splashes = []; banner = null; swan = null;
+    shady = { phase: 'deck', t: 0 };
+    timers = { noodle: 1.4, ball: 3, squirt: 3, flamingo: 3, cannon: CANNONBALL_EVERY - 5, swan: SWAN_EVERY };
+  }
+  function start() { reset(); state = 'play'; paused = false; sfx.start(); musicStart(); showBanner('POOL NOODLES!'); }
+  function showBanner(str) { banner = { str, life: 1.8 }; }
+
+  const head = () => ({ x: pup.x + NO_HEAD.x, y: pup.y + NO_HEAD.y });
+  const speedK = () => Math.min(1.8, 1 + .07 * (level - 1));
+  const rateK = () => (1 + .16 * (level - 1)) * (swan ? .5 : 1);
+
+  // ------------------------------------------------------------------ spawners
+  const NOODLE_COLORS = ['#ff5fa2', '#5fe08a', '#ffd93d', '#5fc9ff', '#ff9f43'];
+  function volleyNoodles() {
+    const fromLeft = Math.random() < .5, n = 2 + Math.min(4, Math.floor(level / 2)) + (Math.random() < .3 ? 1 : 0);
+    const h = head(), baseY = clamp(h.y + rnd(-40, 40), PY0 + 12, PY1 - 12);
+    const x = fromLeft ? PX0 - 6 : PX1 + 6;
+    for (let i = 0; i < n; i++) {
+      const y = clamp(baseY + (i - (n - 1) / 2) * rnd(22, 30), PY0 + 6, PY1 - 6);
+      warnings.push({ x: fromLeft ? PX0 + 2 : PX1 - 6, y, life: .7 + i * .12, fire: () => {
+        const aim = Math.atan2(head().y - y, head().x - x) + rnd(-.25, .25);
+        const a = fromLeft ? clamp(aim, -.7, .7) : (aim > 0 ? Math.max(aim, Math.PI - .7) : Math.min(aim, -Math.PI + .7));
+        const sp = rnd(55, 75) * speedK();
+        bullets.push({ kind: 'noodle', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, len: 22, rot: a, spin: rnd(-2, 2), color: pick(NOODLE_COLORS) });
+        sfx.squeak();
+      } });
+    }
+  }
+  function spawnBall() {
+    const a = Math.PI / 2 + rnd(-1, 1), sp = rnd(45, 62) * speedK();
+    bullets.push({ kind: 'ball', x: rnd(PX0 + 10, PX1 - 10), y: PY0 + 2, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 4.2, bounces: 3 + Math.floor(level / 3) });
+  }
+  function startSquirt() {
+    const g = pick(GUEST_SPOTS), h = head();
+    const aim = Math.atan2(h.y - g.y, h.x - g.x), dir = Math.random() < .5 ? 1 : -1;
+    bullets.push({ kind: 'squirter', x: g.x, y: g.y, a: aim - dir * .55, da: dir * 1.1 / 1.6, life: 1.6, every: .065, next: 0 });
+    sfx.squirt();
+  }
+  function spawnFlamingo() {
+    bullets.push({ kind: 'flamingo', x: rnd(PX0 + 12, PX1 - 12), y: PY0 - 4, vx: rnd(-6, 6), vy: rnd(14, 20), r: 5, fuse: rnd(2.4, 3.6) });
+  }
+  function burst(x, y) {
+    const n = 12 + Math.min(10, level), off = rnd(0, Math.PI * 2), sp = 40 * speedK();
+    const colors = ['#ff7eb6', '#ffd93d', '#5fc9ff', '#5fe08a'];
+    for (let i = 0; i < n; i++) { const a = off + i / n * Math.PI * 2; bullets.push({ kind: 'confetti', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 1.2, color: colors[i % 4] }); }
+    sfx.pop();
+  }
+
+  // ------------------------------------------------------------------ update
+  function update(dt) {
+    clock += dt;
+    if (banner) { banner.life -= dt; if (banner.life <= 0) banner = null; }
+    if (state !== 'play' || paused) return;
+    t += dt;
+
+    const newLevel = 1 + Math.floor(t / LEVEL_EVERY);
+    if (newLevel !== level) { level = newLevel; showBanner(HAZARD_NAMES[Math.min(level, 5) - 1]); sfx.level(); }
+
+    // ---- Noodles
+    let mx = 0, my = 0;
+    if (keys.has('left')) mx -= 1; if (keys.has('right')) mx += 1;
+    if (keys.has('up')) my -= 1; if (keys.has('down')) my += 1;
+    pup.slow = keys.has('slow');
+    if (mx || my) {
+      const l = Math.hypot(mx, my), sp = pup.slow ? SWIM_SLOW : SWIM;
+      pup.x += mx / l * sp * dt; pup.y += my / l * sp * dt; pup.swimT += dt;
+    }
+    if (drag && drag.target) {
+      const dx = drag.target.x - pup.x, dy = drag.target.y - pup.y, d = Math.hypot(dx, dy), max = DRAG_MAX * dt;
+      if (d > .01) { const k = Math.min(1, max / d); pup.x += dx * k; pup.y += dy * k; pup.swimT += dt; }
+    }
+    pup.x = clamp(pup.x, PX0 - 2, PX1 - NO_W + 2); pup.y = clamp(pup.y, PY0 - 1, PY1 - NO_H);
+    if (!mx && !my && !drag) pup.swimT += dt * .4;
+
+    // ---- spawners (each hazard joins at its level)
+    for (const k in timers) timers[k] -= dt;
+    if (timers.noodle <= 0) { volleyNoodles(); timers.noodle = rnd(1.6, 2.4) / rateK(); }
+    if (level >= 2 && timers.ball <= 0) { spawnBall(); timers.ball = rnd(2.6, 3.6) / rateK(); }
+    if (level >= 3 && timers.squirt <= 0) { startSquirt(); timers.squirt = rnd(3.5, 5) / rateK(); }
+    if (level >= 4 && timers.flamingo <= 0) { spawnFlamingo(); timers.flamingo = rnd(3.5, 5) / rateK(); }
+    if (timers.cannon <= 0 && shady.phase === 'deck') { shady = { phase: 'board', t: 0 }; timers.cannon = CANNONBALL_EVERY; }
+    if (timers.swan <= 0 && !swan) {
+      const fromLeft = Math.random() < .5;
+      swan = { x: fromLeft ? -30 : W + 2, y: rnd(PY0 + 20, PY0 + 70), dir: fromLeft ? 1 : -1, a: 0, next: 0, ring: 1.5 };
+      timers.swan = SWAN_EVERY; sfx.honk(); showBanner('SWAN INCOMING!');
+    }
+
+    // ---- Shady's cannonball: walk the board, leap, shadow grows, KERSPLOOSH ring with a gap
+    shady.t += dt;
+    if (shady.phase === 'board' && shady.t > .8) {
+      const h = head();
+      shady = { phase: 'air', t: 0, x: clamp(h.x + rnd(-28, 28), PX0 + 16, PX1 - 16), y: clamp(h.y + rnd(-28, 28), PY0 + 16, PY1 - 16) };
+      sfx.whistle();
+    } else if (shady.phase === 'air' && shady.t > 1.1) {
+      rings.push({ x: shady.x, y: shady.y, r: 2, gap: rnd(0, Math.PI * 2), gapHalf: .5 });
+      for (let i = 0; i < 16; i++) { const a = rnd(0, Math.PI * 2), s = rnd(20, 60); splashes.push({ x: shady.x, y: shady.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(.3, .6) }); }
+      sfx.splash();
+      shady = { phase: 'swim', t: 0, x: shady.x, y: shady.y };
+    } else if (shady.phase === 'swim' && shady.t > 2.4) {
+      shady = { phase: 'deck', t: 0 };
+    }
+
+    // ---- swan boss
+    if (swan) {
+      swan.x += swan.dir * 13 * dt; swan.next -= dt; swan.ring -= dt;
+      const cx = swan.x + 15, cy = swan.y + 8;
+      if (swan.x > -20 && swan.x < W - 10) {
+        if (swan.next <= 0) {
+          swan.next = .15; swan.a += .5;
+          for (const off of [0, Math.PI]) bullets.push({ kind: 'duck', x: cx, y: cy, vx: Math.cos(swan.a + off) * 40 * speedK(), vy: Math.sin(swan.a + off) * 40 * speedK(), r: 2 });
+        }
+        if (swan.ring <= 0) {
+          swan.ring = 2.4; const o = rnd(0, 1);
+          for (let i = 0; i < 10; i++) { const a = o + i / 10 * Math.PI * 2; bullets.push({ kind: 'duck', x: cx, y: cy, vx: Math.cos(a) * 32, vy: Math.sin(a) * 32, r: 2 }); }
+        }
+      }
+      if (swan.x > W + 40 || swan.x < -70) swan = null;
+    }
+
+    // ---- warnings that turn into noodles
+    for (const w of warnings) { w.life -= dt; if (w.life <= 0) { w.fire(); w.dead = true; } }
+    warnings = warnings.filter(w => !w.dead);
+
+    // ---- bullets
+    const h = head();
+    for (const b of bullets) {
+      if (b.kind === 'squirter') {
+        b.life -= dt; b.a += b.da * dt; b.next -= dt;
+        while (b.next <= 0) { b.next += b.every; bullets.push({ kind: 'drop', x: b.x, y: b.y, vx: Math.cos(b.a) * 95 * speedK(), vy: Math.sin(b.a) * 95 * speedK(), r: 1.2 }); }
+        if (b.life <= 0) b.dead = true;
+        continue;
+      }
+      b.x += b.vx * dt; b.y += b.vy * dt;
+      if (b.kind === 'noodle') b.rot += b.spin * dt;
+      if (b.kind === 'ball' && b.bounces > 0) {
+        if ((b.x < PX0 + 4 && b.vx < 0) || (b.x > PX1 - 4 && b.vx > 0)) { b.vx *= -1; b.bounces--; sfx.boing(); }
+        if ((b.y < PY0 + 4 && b.vy < 0) || (b.y > PY1 - 4 && b.vy > 0)) { b.vy *= -1; b.bounces--; sfx.boing(); }
+      }
+      if (b.kind === 'flamingo') { b.fuse -= dt; if (b.fuse <= 0) { b.dead = true; burst(b.x, b.y); continue; } }
+      if (b.x < PX0 - 40 || b.x > PX1 + 40 || b.y < PY0 - 40 || b.y > PY1 + 40) { b.dead = true; continue; }
+      // collision
+      let hit = false;
+      if (b.kind === 'noodle') {
+        const ex = Math.cos(b.rot) * b.len / 2, ey = Math.sin(b.rot) * b.len / 2;
+        hit = segDist(h.x, h.y, b.x - ex, b.y - ey, b.x + ex, b.y + ey) < 2 + HIT_R;
+      } else {
+        hit = Math.hypot(b.x - h.x, b.y - h.y) < b.r + HIT_R;
+      }
+      if (hit) return gameOver();
+    }
+    bullets = bullets.filter(b => !b.dead);
+    if (swan && Math.hypot(swan.x + 15 - h.x, swan.y + 8 - h.y) < 11 + HIT_R) return gameOver();
+
+    for (const r of rings) {
+      r.r += 78 * dt;
+      const d = Math.hypot(h.x - r.x, h.y - r.y);
+      if (Math.abs(d - r.r) < 2 + HIT_R && Math.abs(angDiff(Math.atan2(h.y - r.y, h.x - r.x), r.gap)) > r.gapHalf) return gameOver();
+      if (r.r > 280) r.dead = true;
+    }
+    rings = rings.filter(r => !r.dead);
+    for (const s of splashes) { s.life -= dt; s.x += s.vx * dt; s.y += s.vy * dt; }
+    splashes = splashes.filter(s => s.life > 0);
+  }
+  function segDist(px, py, ax, ay, bx, by) {
+    const vx = bx - ax, vy = by - ay, u = clamp(((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy), 0, 1);
+    return Math.hypot(px - (ax + vx * u), py - (ay + vy * u));
+  }
+  function gameOver() {
+    state = 'over'; overAt = clock;
+    if (t > best) { best = t; newBest = true; store.set('pnp-best', best.toFixed(2)); }
+    musicStop(); sfx.over();
+    const h = head();
+    for (let i = 0; i < 14; i++) { const a = rnd(0, Math.PI * 2), s = rnd(15, 45); splashes.push({ x: h.x, y: h.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(.4, .8) }); }
+  }
+  const fmt = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
+
+  // ================================================================== draw
+  function draw() {
+    ctx.drawImage(bg, 0, 0);
+
+    // water shimmer
+    if (!reduceMotion) {
+      ctx.fillStyle = '#2d8fc4';
+      for (let i = 0; i < 14; i++) {
+        const x = PX0 + ((i * 53 + clock * (6 + i % 3 * 3)) % (PX1 - PX0 - 4)), y = PY0 + ((i * 97) % (PY1 - PY0 - 4));
+        ctx.fillRect(Math.round(x), y, 3, 1);
+      }
+      // grill smoke + coals
+      ctx.fillStyle = (Math.floor(clock * 6) % 2) ? '#ff9f43' : '#e85d4a'; ctx.fillRect(153, 22, 2, 2); ctx.fillRect(158, 25, 2, 2);
+      ctx.fillStyle = 'rgba(200,210,230,.45)';
+      for (let i = 0; i < 3; i++) { const p = (clock * .6 + i / 3) % 1; ctx.fillRect(155 + Math.round(Math.sin(p * 6 + i) * 3), Math.round(18 - p * 16), 2, 2); }
+    }
+
+    // Shady on deck / diving board / landing shadow / paddling back
+    if (shady && (shady.phase === 'deck' || !state.startsWith('p'))) ctx.drawImage(shadyDeck, 68, 6);
+    if (shady && state === 'play') {
+      if (shady.phase === 'board') ctx.drawImage(shadyDeck, 85, Math.round(8 + shady.t / .8 * 30));
+      if (shady.phase === 'air') {
+        const k = shady.t / 1.1, r = Math.round(3 + k * 9);
+        if (Math.floor(clock * 10) % 2 || k > .7) { ctx.fillStyle = 'rgba(5,15,30,.55)'; ctx.beginPath(); ctx.arc(shady.x, shady.y, r, 0, Math.PI * 2); ctx.fill(); }
+      }
+      if (shady.phase === 'swim') ctx.drawImage(shadyDeck, Math.round(shady.x - 6 + (68 - shady.x) * shady.t / 2.4), Math.round(shady.y - 7 + (6 - shady.y) * shady.t / 2.4));
+    }
+
+    // Noodles (paddle animation)
+    const frame = Math.floor(pup.swimT * 8) % 2 ? noodlesA : noodlesB;
+    ctx.fillStyle = '#2d8fc4'; ctx.fillRect(Math.round(pup.x) + 2, Math.round(pup.y) + NO_H, 9, 1);   // wake
+    ctx.drawImage(frame, Math.round(pup.x), Math.round(pup.y));
+
+    // swan boss
+    if (swan) ctx.drawImage(swan.dir > 0 ? SWAN_R : SWAN_L, Math.round(swan.x), Math.round(swan.y));
+
+    // rings (cannonball waves) with their escape gap
+    for (const r of rings) { ringPixels(r.x, r.y, r.r, '#bfeaff', r.gap, r.gapHalf); ringPixels(r.x, r.y, r.r - 3, '#5fc9ff', r.gap, r.gapHalf); }
+
+    // bullets
+    for (const b of bullets) {
+      if (b.kind === 'noodle') {
+        const ex = Math.cos(b.rot) * b.len / 2, ey = Math.sin(b.rot) * b.len / 2;
+        thickLine(b.x - ex, b.y - ey, b.x + ex, b.y + ey, b.color, 4);
+        ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 2, 2);
+      } else if (b.kind === 'ball') ctx.drawImage(BALL, Math.round(b.x - 4.5), Math.round(b.y - 4.5));
+      else if (b.kind === 'flamingo') ctx.drawImage(FLAMINGO, Math.round(b.x - 6), Math.round(b.y - 6));
+      else if (b.kind === 'duck') ctx.drawImage(DUCK, Math.round(b.x - 3), Math.round(b.y - 2));
+      else if (b.kind === 'drop') { ctx.fillStyle = '#d6f3ff'; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 2, 2); }
+      else if (b.kind === 'confetti') { ctx.fillStyle = b.color; ctx.fillRect(Math.round(b.x - 1), Math.round(b.y - 1), 2, 2); }
+    }
+    ctx.fillStyle = '#d6f3ff';
+    for (const s of splashes) ctx.fillRect(Math.round(s.x), Math.round(s.y), 2, 2);
+
+    // incoming-noodle warnings
+    for (const w of warnings) if (Math.floor(w.life * 10) % 2 === 0) text('!', w.x, w.y - 4, { color: '#ffd93d' });
+
+    // hitbox dot while paddling slowly (genre convention)
+    if (pup.slow && state === 'play') { const h = head(); ctx.fillStyle = '#ffffff'; ctx.fillRect(Math.round(h.x) - 1, Math.round(h.y) - 1, 3, 3); ctx.fillStyle = '#f27d9c'; ctx.fillRect(Math.round(h.x), Math.round(h.y), 1, 1); }
+
+    // HUD
+    if (state !== 'title') { text(fmt(t), 4, 4); text(`LV${level}`, W - 4, 4, { align: 'right', color: '#97a6c4' }); }
+    if (banner && state === 'play') {
+      ctx.fillStyle = 'rgba(10,15,32,.7)'; ctx.fillRect(PX0, 150, PX1 - PX0, 20);
+      text(banner.str, W / 2, 156, { align: 'center', color: '#ffd93d' });
+    }
+
+    if (state === 'title') {
+      panel(70, 150);
+      text('POOL', W / 2, 82, { size: 16, align: 'center', color: '#ff7eb6' });
+      text('NOODLE', W / 2, 102, { size: 16, align: 'center', color: '#5fe08a' });
+      text('PANIC', W / 2, 122, { size: 16, align: 'center', color: '#ffd93d' });
+      if (isTouch) text('DRAG TO SWIM', W / 2, 152, { align: 'center', color: '#97a6c4' });
+      else { text('WASD SWIM', W / 2, 148, { align: 'center', color: '#97a6c4' }); text('SHIFT SLOW', W / 2, 160, { align: 'center', color: '#97a6c4' }); }
+      if (best) text(`BEST ${fmt(best)}`, W / 2, 180, { align: 'center', color: '#ffd93d' });
+      blink(isTouch ? 'TAP TO START' : 'PRESS ANY KEY', 200);
+    } else if (state === 'over') {
+      panel(84, 130);
+      text('SPLASHED!', W / 2, 96, { size: 16, align: 'center', color: '#ff7eb6' });
+      text(`TIME ${fmt(t)}`, W / 2, 128, { align: 'center' });
+      text(newBest ? `NEW BEST!` : `BEST ${fmt(best)}`, W / 2, 144, { align: 'center', color: newBest ? '#ffd93d' : '#97a6c4' });
+      if (clock - overAt > .8) blink(isTouch ? 'TAP TO RETRY' : 'ANY KEY: RETRY', 182);
+    } else if (paused) {
+      panel(110, 90);
+      text('PAUSED', W / 2, 130, { size: 16, align: 'center' });
+      blink(isTouch ? 'TAP TO RESUME' : 'PRESS ANY KEY', 166);
+    }
+  }
+  function panel(y, h) { ctx.fillStyle = 'rgba(10,15,32,.78)'; ctx.fillRect(PX0 + 2, y, PX1 - PX0 - 4, h); }
+  function blink(str, y) { if (reduceMotion || Math.floor(clock * 2) % 2 === 0) text(str, W / 2, y, { align: 'center' }); }
+
+  // ================================================================== input
+  function primary() {
+    unlockAudio();
+    if (state === 'title') { start(); return true; }
+    if (state === 'over') { if (clock - overAt > .8) start(); return true; }
+    if (paused) { paused = false; musicStart(); return true; }
+    return false;
+  }
+  const KEYS = { KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', ShiftLeft: 'slow', ShiftRight: 'slow' };
+  addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('a, button') && (e.code === 'Enter' || e.code === 'Space')) return;
+    if (e.code === 'KeyM') { e.preventDefault(); muteBtn.click(); return; }
+    const act = KEYS[e.code];
+    if (act || e.code === 'Space') e.preventDefault();
+    if (!e.repeat && primary()) return;
+    if (act) keys.add(act);
+  });
+  addEventListener('keyup', e => { const act = KEYS[e.code]; if (act) keys.delete(act); });
+  addEventListener('blur', () => keys.clear());
+
+  // touch / mouse drag: relative, so the finger never covers Noodles
+  const game = document.getElementById('game');
+  const toCanvas = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height }; };
+  game.addEventListener('pointerdown', e => {
+    if (e.target.closest('button, a')) return;
+    e.preventDefault();
+    if (primary()) return;
+    const p = toCanvas(e);
+    drag = { id: e.pointerId, sx: p.x, sy: p.y, px: pup.x, py: pup.y, target: null };
+    game.setPointerCapture?.(e.pointerId);
+  });
+  game.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const p = toCanvas(e);
+    drag.target = { x: drag.px + (p.x - drag.sx), y: drag.py + (p.y - drag.sy) };
+  });
+  const endDrag = e => { if (drag && e.pointerId === drag.id) drag = null; };
+  game.addEventListener('pointerup', endDrag); game.addEventListener('pointercancel', endDrag);
+  game.addEventListener('contextmenu', e => e.preventDefault());
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && state === 'play') { paused = true; keys.clear(); drag = null; musicStop(); }
+  });
+
+
+  // ================================================================== sizing + loop
+  function fit() {
+    const availW = game.clientWidth - 16, availH = game.clientHeight - 16 - (embedded ? 44 : 0);
+    let s = Math.min(availW / W, availH / H);
+    if (s >= 2 && (s - Math.floor(s)) / s < .15) s = Math.floor(s);   // crisp whole-pixel scale unless it shrinks the game a lot
+    s = Math.max(s, .5);
+    cv.style.width = `${Math.floor(W * s)}px`; cv.style.height = `${Math.floor(H * s)}px`;
+  }
+  addEventListener('resize', fit); addEventListener('orientationchange', fit);
+
+  reset(); state = 'title';
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now;   // rAF time can precede startup time
+    update(dt); draw();
+    requestAnimationFrame(frame);
+  }
+  const ready = document.fonts && document.fonts.load ? document.fonts.load(`8px ${FONT}`).catch(() => {}) : Promise.resolve();
+  Promise.race([ready, new Promise(r => setTimeout(r, 1500))]).then(() => { fit(); requestAnimationFrame(frame); });
+  fit();
+})();
+</script>
+</body>
+</html>
